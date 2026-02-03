@@ -38,19 +38,6 @@ function VideoMeet() {
     setTimeout(() => setMessage(""), 3000);
   };
 
-  const createBlackVideoTrack = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 640;
-    canvas.height = 480;
-
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const stream = canvas.captureStream();
-    return stream.getVideoTracks()[0];
-  };
-
   /* ---------- media ---------- */
   const startMedia = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -58,7 +45,7 @@ function VideoMeet() {
       audio: true,
     });
 
-    // start mic & camera OFF
+    // start OFF (same behavior as before)
     stream.getAudioTracks().forEach((t) => (t.enabled = false));
     stream.getVideoTracks().forEach((t) => (t.enabled = false));
 
@@ -67,19 +54,11 @@ function VideoMeet() {
   };
 
   /* ---------- peer ---------- */
-  const createPeer = async (createOffer = false) => {
+  const createPeer = async () => {
     if (peerRef.current) return;
 
     const peer = new RTCPeerConnection(ICE_SERVERS);
     peerRef.current = peer;
-
-    peer._senders = { audio: null, video: null };
-
-    localStreamRef.current.getTracks().forEach((track) => {
-      const sender = peer.addTrack(track, localStreamRef.current);
-      if (track.kind === "audio") peer._senders.audio = sender;
-      if (track.kind === "video") peer._senders.video = sender;
-    });
 
     peer.ontrack = (e) => {
       remoteVideoRef.current.srcObject = e.streams[0];
@@ -87,15 +66,16 @@ function VideoMeet() {
 
     peer.onicecandidate = (e) => {
       if (e.candidate && remoteSocketIdRef.current) {
-        socket.emit("signal", remoteSocketIdRef.current, e.candidate);
+        socket.emit("signal", remoteSocketIdRef.current, {
+          type: "candidate",
+          candidate: e.candidate,
+        });
       }
     };
 
-    if (createOffer) {
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      socket.emit("signal", remoteSocketIdRef.current, offer);
-    }
+    localStreamRef.current.getTracks().forEach((track) => {
+      peer.addTrack(track, localStreamRef.current);
+    });
   };
 
   /* ---------- socket ---------- */
@@ -107,44 +87,54 @@ function VideoMeet() {
 
     init();
 
-    socket.on("user-joined", (socketId, users) => {
+    socket.on("user-joined", async (socketId, users) => {
       if (socketId === socket.id) return;
+
       remoteSocketIdRef.current = socketId;
       showMessage("User joined");
 
-      if (users.length > 1) {
-        createPeer(true); // second user creates offer
+      await createPeer();
+
+      // ONLY first user creates offer (no race condition)
+      if (users.length === 2 && socket.id === users[0]) {
+        const offer = await peerRef.current.createOffer();
+        await peerRef.current.setLocalDescription(offer);
+        socket.emit("signal", socketId, offer);
       }
     });
 
     socket.on("signal", async (fromSocketId, data) => {
       remoteSocketIdRef.current = fromSocketId;
-
-      if (!peerRef.current) {
-        await createPeer(false);
-      }
+      await createPeer();
 
       if (data.type === "offer") {
         await peerRef.current.setRemoteDescription(data);
+
         const answer = await peerRef.current.createAnswer();
         await peerRef.current.setLocalDescription(answer);
         socket.emit("signal", fromSocketId, answer);
 
-        pendingIceRef.current.forEach((c) =>
-          peerRef.current.addIceCandidate(c),
-        );
+        pendingIceRef.current.forEach(async (c) => {
+          await peerRef.current.addIceCandidate(c);
+        });
         pendingIceRef.current = [];
-      } else if (data.type === "answer") {
+      }
+
+      if (data.type === "answer") {
         await peerRef.current.setRemoteDescription(data);
-        pendingIceRef.current.forEach((c) =>
-          peerRef.current.addIceCandidate(c),
-        );
+
+        pendingIceRef.current.forEach(async (c) => {
+          await peerRef.current.addIceCandidate(c);
+        });
         pendingIceRef.current = [];
-      } else {
+      }
+
+      if (data.type === "candidate") {
+        const candidate = new RTCIceCandidate(data.candidate);
         if (peerRef.current.remoteDescription) {
-          await peerRef.current.addIceCandidate(data);
+          await peerRef.current.addIceCandidate(candidate);
         } else {
-          pendingIceRef.current.push(data);
+          pendingIceRef.current.push(candidate);
         }
       }
     });
@@ -160,38 +150,20 @@ function VideoMeet() {
   }, [meetingCode]);
 
   /* ---------- controls ---------- */
-  const toggleMic = async () => {
+  const toggleMic = () => {
     const track = localStreamRef.current.getAudioTracks()[0];
     if (!track) return;
 
-    const newState = !micOn;
-    track.enabled = newState;
-    setMicOn(newState);
-
-    if (peerRef.current?._senders.audio) {
-      await peerRef.current._senders.audio.replaceTrack(
-        newState ? track : null,
-      );
-    }
+    track.enabled = !track.enabled;
+    setMicOn(track.enabled);
   };
 
-  const toggleCamera = async () => {
+  const toggleCamera = () => {
     const track = localStreamRef.current.getVideoTracks()[0];
     if (!track) return;
 
-    const newState = !cameraOn;
-    setCameraOn(newState);
-
-    if (peerRef.current?._senders.video) {
-      if (newState) {
-        track.enabled = true;
-        await peerRef.current._senders.video.replaceTrack(track);
-      } else {
-        track.enabled = false;
-        const blackTrack = createBlackVideoTrack();
-        await peerRef.current._senders.video.replaceTrack(blackTrack);
-      }
-    }
+    track.enabled = !track.enabled;
+    setCameraOn(track.enabled);
   };
 
   const leaveMeeting = () => {
@@ -221,12 +193,10 @@ function VideoMeet() {
         </div>
       </div>
 
-      {/* 🎛 Floating Controls */}
       <div className="controls-bar">
         <button
           className={`control-btn ${micOn ? "active" : "danger"}`}
           onClick={toggleMic}
-          title={micOn ? "Mute mic" : "Unmute mic"}
         >
           <FontAwesomeIcon icon={micOn ? faMicrophone : faMicrophoneSlash} />
         </button>
@@ -234,16 +204,11 @@ function VideoMeet() {
         <button
           className={`control-btn ${cameraOn ? "active" : "danger"}`}
           onClick={toggleCamera}
-          title={cameraOn ? "Turn camera off" : "Turn camera on"}
         >
           <FontAwesomeIcon icon={cameraOn ? faVideo : faVideoSlash} />
         </button>
 
-        <button
-          className="control-btn leave"
-          onClick={leaveMeeting}
-          title="Leave meeting"
-        >
+        <button className="control-btn leave" onClick={leaveMeeting}>
           <FontAwesomeIcon icon={faPhoneSlash} />
         </button>
       </div>
