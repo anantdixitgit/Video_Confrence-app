@@ -1,0 +1,120 @@
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Background */
+.landing-container {
+  height: 100vh;
+  background: url("https://images.unsplash.com/photo-1522071820081-009f0129c71c")
+    center/cover no-repeat;
+  position: relative;
+}
+
+/* Navbar */
+.navbar {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  padding: 16px 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 10;
+}
+
+.logo {
+  font-size: 26px;
+  font-weight: bold;
+  color: #ffffff;
+  letter-spacing: 1px;
+}
+
+/* Navbar Buttons */
+.nav-right {
+  display: flex;
+  gap: 15px;
+}
+
+.nav-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  background: transparent;
+  color: #ffffff;
+  transition: all 0.3s ease;
+}
+
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.nav-btn.outline {
+  border: 1px solid #ffffff;
+}
+
+.nav-btn.primary {
+  background: #4f46e5;
+}
+
+.nav-btn.primary:hover {
+  background: #4338ca;
+}
+
+/* Overlay */
+.overlay {
+  height: 100%;
+  background: linear-gradient(
+    to bottom right,
+    rgba(0, 0, 0, 0.6),
+    rgba(0, 0, 0, 0.4)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 20px;
+}
+
+/* Content */
+.landing-content {
+  max-width: 700px;
+  color: #ffffff;
+}
+
+.landing-title {
+  font-size: 48px;
+  margin-bottom: 20px;
+  font-weight: 700;
+}
+
+.landing-subtitle {
+  font-size: 18px;
+  line-height: 1.6;
+  margin-bottom: 35px;
+  color: #e5e7eb;
+}
+
+/* CTA Button */
+.get-started-btn {
+  padding: 14px 36px;
+  font-size: 16px;
+  border-radius: 30px;
+  border: none;
+  background: #22c55e;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.get-started-btn:hover {
+  background: #16a34a;
+  transform: translateY(-2px);
+}
