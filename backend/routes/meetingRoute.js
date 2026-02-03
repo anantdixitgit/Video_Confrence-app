@@ -1,5 +1,5 @@
 import express from "express";
-import verifyToken from "../middleware/Auth.middleware.js";
+import verifyJWT from "../Middleware/Auth.middleware.js";
 import Meeting from "../models/meetingSchema.js";
 import { createMeeting, joinMeeting } from "../controller/meetingController.js";
 
