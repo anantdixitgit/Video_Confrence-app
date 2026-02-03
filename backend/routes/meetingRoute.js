@@ -1,6 +1,6 @@
 import express from "express";
 import verifyJWT from "../Middleware/Auth.middleware.js";
-import Meeting from "../models/meetingSchema.js";
+import Meeting from "../Models/meetingSchema.js";
 import { createMeeting, joinMeeting } from "../controller/meetingController.js";
 
 const router = express.Router();
