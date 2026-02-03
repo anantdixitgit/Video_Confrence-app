@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: "video-confrence-app-ruddy.vercel.app", // frontend URL
+    origin: "https://video-confrence-app-ruddy.vercel.app", // frontend URL
     credentials: true,
   }),
 );

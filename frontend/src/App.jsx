@@ -7,6 +7,8 @@ import VideoMeet from "./components/VideoMeet/VideoMeet";
 import JoinMeeting from "./components/JoinMeet";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./protectedRoute";
+import axios from "axios";
+axios.defaults.withCredentials = true;
 
 function App() {
   return (
