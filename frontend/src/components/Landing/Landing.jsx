@@ -10,18 +10,24 @@ function Landing() {
   // Check login status on page load
   useEffect(() => {
     axios
-      .get("http://localhost:5000/api/v1/user/authenticate", {
-        withCredentials: true,
-      })
+      .get(
+        "https://video-confrence-app.onrender.com/api/v1/user/authenticate",
+        {
+          withCredentials: true,
+        },
+      )
       .then(() => setIsLoggedIn(true))
       .catch(() => setIsLoggedIn(false));
   }, []);
 
   const handleGetStarted = async () => {
     try {
-      await axios.get("http://localhost:5000/api/v1/user/authenticate", {
-        withCredentials: true,
-      });
+      await axios.get(
+        "https://video-confrence-app.onrender.com/api/v1/user/authenticate",
+        {
+          withCredentials: true,
+        },
+      );
 
       navigate("/meeting");
     } catch {
@@ -32,7 +38,7 @@ function Landing() {
   const handleLogout = async () => {
     try {
       await axios.post(
-        "http://localhost:5000/api/v1/user/logout",
+        "https://video-confrence-app.onrender.com/api/v1/user/logout",
         {},
         { withCredentials: true },
       );

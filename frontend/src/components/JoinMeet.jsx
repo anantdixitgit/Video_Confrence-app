@@ -12,7 +12,7 @@ function JoinMeeting() {
     try {
       console.log("before createmeeting call");
       const res = await axios.post(
-        "http://localhost:5000/api/v1/meeting/create",
+        "https://video-confrence-app.onrender.com/api/v1/meeting/create",
         {},
         { withCredentials: true },
       );
@@ -36,7 +36,7 @@ function JoinMeeting() {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/v1/meeting/join",
+        "https://video-confrence-app.onrender.com/api/v1/meeting/join",
         { meetingCode },
         { withCredentials: true },
       );
