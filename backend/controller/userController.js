@@ -72,13 +72,13 @@ export const login = async (req, res) => {
 
     const loggedInUser = await User.findOne({ username }).select("-password");
 
-    const isProduction = process.env.NODE_ENV === "production";
+    //const isProduction = process.env.NODE_ENV === "production";
 
     res.cookie("token", token, {
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
+      secure: true,
+      sameSite: "none",
     });
 
     res.status(200).json({
