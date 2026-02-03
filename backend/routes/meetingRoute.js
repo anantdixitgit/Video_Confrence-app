@@ -5,7 +5,7 @@ import { createMeeting, joinMeeting } from "../controller/meetingController.js";
 
 const router = express.Router();
 
-router.route("/create").post(verifyToken, createMeeting);
-router.route("/join").post(verifyToken, joinMeeting);
+router.route("/create").post(verifyJWT, createMeeting);
+router.route("/join").post(verifyJWT, joinMeeting);
 
 export default router;
