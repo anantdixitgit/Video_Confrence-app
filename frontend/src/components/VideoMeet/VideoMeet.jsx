@@ -13,7 +13,19 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 const ICE_SERVERS = {
-  iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:global.stun.twilio.com:3478"] }],
+  iceServers: [
+    { urls: "stun:global.stun.twilio.com:3478" },
+    {
+      urls: "turn:global.turn.twilio.com:3478?transport=udp",
+      username: "TWILIO_USERNAME",
+      credential: "TWILIO_PASSWORD"
+    },
+    {
+      urls: "turn:global.turn.twilio.com:3478?transport=tcp",
+      username: "TWILIO_USERNAME",
+      credential: "TWILIO_PASSWORD"
+    }
+  ]
 };
 
 function VideoMeet() {
