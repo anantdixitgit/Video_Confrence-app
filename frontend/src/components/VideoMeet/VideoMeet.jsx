@@ -12,9 +12,11 @@ import {
   faPhoneSlash,
 } from "@fortawesome/free-solid-svg-icons";
 
+/* ---------- ICE CONFIG ---------- */
+/* ⚠️ For production, generate TURN credentials dynamically */
 const ICE_SERVERS = {
   iceServers: [
-    { urls: "stun:global.stun.twilio.com:3478" },
+    { urls: "stun:stun.l.google.com:19302" },
     {
       urls: "turn:global.turn.twilio.com:3478?transport=udp",
       username: "TWILIO_USERNAME",
@@ -38,20 +40,21 @@ function VideoMeet() {
   const localStreamRef = useRef(null);
   const peerRef = useRef(null);
   const remoteSocketIdRef = useRef(null);
+
   const pendingIceRef = useRef([]);
   const pendingLocalIceRef = useRef([]);
-  const createOfferPendingRef = useRef(false);
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [message, setMessage] = useState("");
 
-  /* ---------- helpers ---------- */
+  /* ---------- MESSAGE ---------- */
   const showMessage = (msg) => {
     setMessage(msg);
     setTimeout(() => setMessage(""), 3000);
   };
 
+  /* ---------- BLACK VIDEO TRACK ---------- */
   const createBlackVideoTrack = () => {
     const canvas = document.createElement("canvas");
     canvas.width = 640;
@@ -61,44 +64,50 @@ function VideoMeet() {
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const stream = canvas.captureStream();
-    return stream.getVideoTracks()[0];
+    return canvas.captureStream().getVideoTracks()[0];
   };
 
-  /* ---------- media ---------- */
+  /* ---------- START MEDIA ---------- */
   const startMedia = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
     });
 
-    // start mic & camera OFF
     stream.getAudioTracks().forEach((t) => (t.enabled = false));
     stream.getVideoTracks().forEach((t) => (t.enabled = false));
 
     localStreamRef.current = stream;
-    localVideoRef.current.srcObject = stream;
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream;
+    }
   };
 
-  /* ---------- peer ---------- */
-  const createPeer = async (createOffer = false) => {
-    if (peerRef.current) return;
+  /* ---------- CREATE PEER ---------- */
+  const createPeer = () => {
+    if (peerRef.current) return peerRef.current;
 
     const peer = new RTCPeerConnection(ICE_SERVERS);
     peerRef.current = peer;
 
     peer._senders = { audio: null, video: null };
 
+    /* Attach local tracks */
     localStreamRef.current.getTracks().forEach((track) => {
       const sender = peer.addTrack(track, localStreamRef.current);
       if (track.kind === "audio") peer._senders.audio = sender;
       if (track.kind === "video") peer._senders.video = sender;
     });
 
+    /* Remote stream */
     peer.ontrack = (e) => {
-      remoteVideoRef.current.srcObject = e.streams[0];
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = e.streams[0];
+      }
     };
 
+    /* ICE candidate */
     peer.onicecandidate = (e) => {
       if (!e.candidate) return;
 
@@ -109,82 +118,49 @@ function VideoMeet() {
       }
     };
 
-    if (createOffer) {
-      if (!remoteSocketIdRef.current) {
-        createOfferPendingRef.current = true;
-      } else {
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-        socket.emit("signal", remoteSocketIdRef.current, offer);
-      }
-    }
-  };
-
-  /* ---------- socket ---------- */
-  useEffect(() => {
-    const init = async () => {
-      await startMedia();
-      socket.emit("join-call", meetingCode);
+    /* Debug logs */
+    peer.onconnectionstatechange = () => {
+      console.log("Connection state:", peer.connectionState);
     };
 
-    init();
+    peer.oniceconnectionstatechange = () => {
+      console.log("ICE state:", peer.iceConnectionState);
+    };
 
-    socket.on("user-joined", (socketId, users) => {
+    return peer;
+  };
+
+  /* ---------- SOCKET + INIT ---------- */
+  useEffect(() => {
+    socket.on("user-joined", async (socketId, users) => {
       if (socketId === socket.id) return;
+
       remoteSocketIdRef.current = socketId;
-      if (pendingLocalIceRef.current.length > 0) {
-        pendingLocalIceRef.current.forEach((c) =>
-          socket.emit("signal", remoteSocketIdRef.current, c),
-        );
-        pendingLocalIceRef.current = [];
-      }
       showMessage("User joined");
 
+      const peer = createPeer();
+
       if (users.length > 1) {
-        createPeer(true); // second user creates offer
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        socket.emit("signal", socketId, offer);
       }
     });
 
     socket.on("signal", async (fromSocketId, data) => {
       remoteSocketIdRef.current = fromSocketId;
-
-      if (pendingLocalIceRef.current.length > 0) {
-        pendingLocalIceRef.current.forEach((c) =>
-          socket.emit("signal", remoteSocketIdRef.current, c),
-        );
-        pendingLocalIceRef.current = [];
-      }
-
-      if (createOfferPendingRef.current && peerRef.current) {
-        createOfferPendingRef.current = false;
-        const offer = await peerRef.current.createOffer();
-        await peerRef.current.setLocalDescription(offer);
-        socket.emit("signal", remoteSocketIdRef.current, offer);
-      }
-
-      if (!peerRef.current) {
-        await createPeer(false);
-      }
+      const peer = createPeer();
 
       if (data.type === "offer") {
-        await peerRef.current.setRemoteDescription(data);
-        const answer = await peerRef.current.createAnswer();
-        await peerRef.current.setLocalDescription(answer);
+        await peer.setRemoteDescription(data);
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
         socket.emit("signal", fromSocketId, answer);
-
-        pendingIceRef.current.forEach((c) =>
-          peerRef.current.addIceCandidate(c),
-        );
-        pendingIceRef.current = [];
       } else if (data.type === "answer") {
-        await peerRef.current.setRemoteDescription(data);
-        pendingIceRef.current.forEach((c) =>
-          peerRef.current.addIceCandidate(c),
-        );
-        pendingIceRef.current = [];
+        await peer.setRemoteDescription(data);
       } else {
-        if (peerRef.current.remoteDescription) {
-          await peerRef.current.addIceCandidate(data);
+        if (peer.remoteDescription) {
+          await peer.addIceCandidate(data);
         } else {
           pendingIceRef.current.push(data);
         }
@@ -195,13 +171,27 @@ function VideoMeet() {
       showMessage("User left");
       peerRef.current?.close();
       peerRef.current = null;
-      remoteVideoRef.current.srcObject = null;
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
     });
 
-    return () => socket.off();
+    /* AFTER registering listeners */
+    const init = async () => {
+      await startMedia();
+      createPeer(); // 🔥 important
+      socket.emit("join-call", meetingCode);
+    };
+
+    init();
+
+    return () => {
+      socket.off();
+      peerRef.current?.close();
+    };
   }, [meetingCode]);
 
-  /* ---------- controls ---------- */
+  /* ---------- CONTROLS ---------- */
   const toggleMic = async () => {
     const track = localStreamRef.current.getAudioTracks()[0];
     if (!track) return;
@@ -230,25 +220,24 @@ function VideoMeet() {
         await peerRef.current._senders.video.replaceTrack(track);
       } else {
         track.enabled = false;
-        const blackTrack = createBlackVideoTrack();
-        await peerRef.current._senders.video.replaceTrack(blackTrack);
+        await peerRef.current._senders.video.replaceTrack(
+          createBlackVideoTrack(),
+        );
       }
     }
   };
 
   const leaveMeeting = () => {
-    localStreamRef.current.getTracks().forEach((t) => t.stop());
+    localStreamRef.current?.getTracks().forEach((t) => t.stop());
     peerRef.current?.close();
     socket.emit("leave-call", meetingCode);
     socket.disconnect();
     navigate("/");
   };
 
-  /* ---------- UI ---------- */
   return (
     <div className="video-page">
       <h3>Meeting ID: {meetingCode}</h3>
-
       {message && <div className="toast">{message}</div>}
 
       <div className="videos">
@@ -263,12 +252,10 @@ function VideoMeet() {
         </div>
       </div>
 
-      {/* 🎛 Floating Controls */}
       <div className="controls-bar">
         <button
           className={`control-btn ${micOn ? "active" : "danger"}`}
           onClick={toggleMic}
-          title={micOn ? "Mute mic" : "Unmute mic"}
         >
           <FontAwesomeIcon icon={micOn ? faMicrophone : faMicrophoneSlash} />
         </button>
@@ -276,16 +263,11 @@ function VideoMeet() {
         <button
           className={`control-btn ${cameraOn ? "active" : "danger"}`}
           onClick={toggleCamera}
-          title={cameraOn ? "Turn camera off" : "Turn camera on"}
         >
           <FontAwesomeIcon icon={cameraOn ? faVideo : faVideoSlash} />
         </button>
 
-        <button
-          className="control-btn leave"
-          onClick={leaveMeeting}
-          title="Leave meeting"
-        >
+        <button className="control-btn leave" onClick={leaveMeeting}>
           <FontAwesomeIcon icon={faPhoneSlash} />
         </button>
       </div>
