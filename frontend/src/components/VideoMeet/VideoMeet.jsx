@@ -18,14 +18,14 @@ const ICE_SERVERS = {
     {
       urls: "turn:global.turn.twilio.com:3478?transport=udp",
       username: "TWILIO_USERNAME",
-      credential: "TWILIO_PASSWORD"
+      credential: "TWILIO_PASSWORD",
     },
     {
       urls: "turn:global.turn.twilio.com:3478?transport=tcp",
       username: "TWILIO_USERNAME",
-      credential: "TWILIO_PASSWORD"
-    }
-  ]
+      credential: "TWILIO_PASSWORD",
+    },
+  ],
 };
 
 function VideoMeet() {
@@ -39,6 +39,8 @@ function VideoMeet() {
   const peerRef = useRef(null);
   const remoteSocketIdRef = useRef(null);
   const pendingIceRef = useRef([]);
+  const pendingLocalIceRef = useRef([]);
+  const createOfferPendingRef = useRef(false);
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
@@ -98,15 +100,23 @@ function VideoMeet() {
     };
 
     peer.onicecandidate = (e) => {
-      if (e.candidate && remoteSocketIdRef.current) {
+      if (!e.candidate) return;
+
+      if (remoteSocketIdRef.current) {
         socket.emit("signal", remoteSocketIdRef.current, e.candidate);
+      } else {
+        pendingLocalIceRef.current.push(e.candidate);
       }
     };
 
     if (createOffer) {
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      socket.emit("signal", remoteSocketIdRef.current, offer);
+      if (!remoteSocketIdRef.current) {
+        createOfferPendingRef.current = true;
+      } else {
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        socket.emit("signal", remoteSocketIdRef.current, offer);
+      }
     }
   };
 
@@ -122,6 +132,12 @@ function VideoMeet() {
     socket.on("user-joined", (socketId, users) => {
       if (socketId === socket.id) return;
       remoteSocketIdRef.current = socketId;
+      if (pendingLocalIceRef.current.length > 0) {
+        pendingLocalIceRef.current.forEach((c) =>
+          socket.emit("signal", remoteSocketIdRef.current, c),
+        );
+        pendingLocalIceRef.current = [];
+      }
       showMessage("User joined");
 
       if (users.length > 1) {
@@ -131,6 +147,20 @@ function VideoMeet() {
 
     socket.on("signal", async (fromSocketId, data) => {
       remoteSocketIdRef.current = fromSocketId;
+
+      if (pendingLocalIceRef.current.length > 0) {
+        pendingLocalIceRef.current.forEach((c) =>
+          socket.emit("signal", remoteSocketIdRef.current, c),
+        );
+        pendingLocalIceRef.current = [];
+      }
+
+      if (createOfferPendingRef.current && peerRef.current) {
+        createOfferPendingRef.current = false;
+        const offer = await peerRef.current.createOffer();
+        await peerRef.current.setLocalDescription(offer);
+        socket.emit("signal", remoteSocketIdRef.current, offer);
+      }
 
       if (!peerRef.current) {
         await createPeer(false);
