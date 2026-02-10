@@ -127,6 +127,8 @@ function VideoMeet() {
       socket.emit("join-call", meetingCode);
     };
 
+    init();
+
     socket.on("user-joined", (socketId, users) => {
       if (socketId === socket.id) return;
       remoteSocketIdRef.current = socketId;
@@ -195,10 +197,6 @@ function VideoMeet() {
       peerRef.current = null;
       remoteVideoRef.current.srcObject = null;
     });
-
-    // start media and emit join after handlers are registered to avoid
-    // missing 'user-joined' when the server responds immediately
-    init();
 
     return () => socket.off();
   }, [meetingCode]);
