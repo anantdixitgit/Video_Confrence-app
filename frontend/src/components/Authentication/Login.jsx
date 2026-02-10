@@ -4,10 +4,14 @@ import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
 import "./authSplit.css";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+
 function Login() {
-  const { isAuthenticated, user, refreshAuth } = useAuth();
+  const { refreshAuth } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false); // ✅ added
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -18,8 +22,11 @@ function Login() {
       return;
     }
 
+    if (loading) return; // ✅ prevent double click
+
     try {
-      console.log("i am here");
+      setLoading(true); // ✅ start loader
+
       const res = await axios.post(
         "https://video-confrence-app.onrender.com/api/v1/user/login",
         { username, password },
@@ -32,10 +39,12 @@ function Login() {
 
       if (res.data.success) {
         alert("Login successful");
-        navigate("/meeting"); // or join-meeting page
+        navigate("/meeting");
       }
     } catch (err) {
       alert(err.response?.data?.message || "Invalid username or password");
+    } finally {
+      setLoading(false); // ✅ stop loader
     }
   };
 
@@ -72,11 +81,18 @@ function Login() {
               placeholder="Password"
               className="auth-input"
               onChange={(e) => setPassword(e.target.value)}
+              className="auth-input"
               required
             />
 
-            <button type="submit" className="auth-btn">
-              Login
+            <button type="submit" className="auth-btn" disabled={loading}>
+              {loading ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} spin /> Logging in...
+                </>
+              ) : (
+                "Login"
+              )}
             </button>
           </form>
 

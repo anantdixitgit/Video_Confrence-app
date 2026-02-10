@@ -3,16 +3,24 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import "./authSplit.css";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSpinner } from "@fortawesome/free-solid-svg-icons";
+
 function Signup() {
   const [fullname, setFullname] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false); // ✅ added
   const navigate = useNavigate();
 
   const handleSignup = async (e) => {
     e.preventDefault();
 
+    if (loading) return;
+
     try {
+      setLoading(true);
+
       const res = await axios.post(
         "https://video-confrence-app.onrender.com/api/v1/user/register",
         {
@@ -28,12 +36,13 @@ function Signup() {
       }
     } catch (err) {
       alert(err.response?.data?.message || "Signup failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="auth-wrapper">
-      {/* Left Section */}
       <div className="auth-left signup-bg">
         <h1>MeetClub</h1>
         <p>
@@ -42,7 +51,6 @@ function Signup() {
         </p>
       </div>
 
-      {/* Right Section */}
       <div className="auth-right">
         <div className="auth-form-card">
           <h2>Create Account</h2>
@@ -76,8 +84,14 @@ function Signup() {
               required
             />
 
-            <button type="submit" className="auth-btn">
-              Sign Up
+            <button type="submit" className="auth-btn" disabled={loading}>
+              {loading ? (
+                <>
+                  <FontAwesomeIcon icon={faSpinner} spin /> Signing Up...
+                </>
+              ) : (
+                "Sign Up"
+              )}
             </button>
           </form>
 
