@@ -1,6 +1,12 @@
 import { io } from "socket.io-client";
 
-export const socket = io("https://video-confrence-app.onrender.com", {
+// For local development
+// const SERVER_URL = "http://localhost:5000";
+
+// For production (Render Backend URL)
+const SERVER_URL = "https://video-confrence-app.onrender.com";
+
+export const socket = io(SERVER_URL, {
   transports: ["websocket"],
   withCredentials: true,
   reconnection: true,

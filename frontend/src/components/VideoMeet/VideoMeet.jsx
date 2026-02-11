@@ -14,19 +14,10 @@ import {
 
 /* ---------- ICE CONFIG ---------- */
 /* ⚠️ For production, generate TURN credentials dynamically */
+/* ---------- ICE CONFIG ---------- */
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: "turn:global.turn.twilio.com:3478?transport=udp",
-      username: "TWILIO_USERNAME",
-      credential: "TWILIO_PASSWORD",
-    },
-    {
-      urls: "turn:global.turn.twilio.com:3478?transport=tcp",
-      username: "TWILIO_USERNAME",
-      credential: "TWILIO_PASSWORD",
-    },
   ],
 };
 
@@ -69,58 +60,84 @@ function VideoMeet() {
 
   /* ---------- START MEDIA ---------- */
   const startMedia = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
 
-    stream.getAudioTracks().forEach((t) => (t.enabled = false));
-    stream.getVideoTracks().forEach((t) => (t.enabled = false));
+      stream.getAudioTracks().forEach((t) => (t.enabled = false));
+      stream.getVideoTracks().forEach((t) => (t.enabled = false));
 
-    localStreamRef.current = stream;
+      localStreamRef.current = stream;
 
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error("Error accessing media:", error);
     }
   };
 
+  /* ---------- ADD LOCAL TRACKS ---------- */
+  const addLocalTracks = (peer) => {
+    if (!localStreamRef.current) return;
+
+    localStreamRef.current.getTracks().forEach((track) => {
+      // Check if track already added
+      const senders = peer.getSenders();
+      const alreadyAdded = senders.some(player => player.track === track);
+
+      if (!alreadyAdded) {
+        const sender = peer.addTrack(track, localStreamRef.current);
+        if (track.kind === "audio") peer._senders.audio = sender;
+        if (track.kind === "video") peer._senders.video = sender;
+      }
+    });
+  }
+
   /* ---------- CREATE PEER ---------- */
-  const createPeer = () => {
-    if (peerRef.current) return peerRef.current;
+  const createPeer = (targetSocketId) => {
+    // If peer exists and is not closed, return it. 
+    // BUT we need to be careful about state. 
+    // Simplest approach for 1:1: close existing if different user (not handled here but assumes 1:1)
+    if (peerRef.current) {
+      if (peerRef.current.connectionState !== 'closed') {
+        return peerRef.current;
+      }
+    }
 
     const peer = new RTCPeerConnection(ICE_SERVERS);
     peerRef.current = peer;
-
     peer._senders = { audio: null, video: null };
 
-    /* Attach local tracks */
-    localStreamRef.current.getTracks().forEach((track) => {
-      const sender = peer.addTrack(track, localStreamRef.current);
-      if (track.kind === "audio") peer._senders.audio = sender;
-      if (track.kind === "video") peer._senders.video = sender;
-    });
+    // Attach local tracks
+    addLocalTracks(peer);
 
-    /* Remote stream */
+    // Remote stream
     peer.ontrack = (e) => {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = e.streams[0];
       }
     };
 
-    /* ICE candidate */
+    // ICE candidate
     peer.onicecandidate = (e) => {
       if (!e.candidate) return;
 
-      if (remoteSocketIdRef.current) {
-        socket.emit("signal", remoteSocketIdRef.current, e.candidate);
+      if (targetSocketId) {
+        socket.emit("signal", targetSocketId, e.candidate);
       } else {
         pendingLocalIceRef.current.push(e.candidate);
       }
     };
 
-    /* Debug logs */
+    // Connection state
     peer.onconnectionstatechange = () => {
       console.log("Connection state:", peer.connectionState);
+      if (peer.connectionState === 'disconnected' || peer.connectionState === 'failed') {
+        // Optional: handle retry or cleanup
+      }
     };
 
     peer.oniceconnectionstatechange = () => {
@@ -132,62 +149,134 @@ function VideoMeet() {
 
   /* ---------- SOCKET + INIT ---------- */
   useEffect(() => {
-    socket.on("user-joined", async (socketId, users) => {
+
+    const handleUserJoined = async (socketId, users) => {
       if (socketId === socket.id) return;
 
+      console.log("User joined:", socketId);
       remoteSocketIdRef.current = socketId;
       showMessage("User joined");
 
-      const peer = createPeer();
+      // Cleanup separate peer if needed (though we assume 1:1)
+      if (peerRef.current) {
+        peerRef.current.close();
+        peerRef.current = null;
+      }
 
-      if (users.length > 1) {
+      const peer = createPeer(socketId);
+
+      // Flush local candidates now that we know who to send to
+      if (pendingLocalIceRef.current.length > 0) {
+        pendingLocalIceRef.current.forEach(candidate => {
+          socket.emit("signal", socketId, candidate);
+        });
+        pendingLocalIceRef.current = [];
+      }
+
+      try {
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
         socket.emit("signal", socketId, offer);
+      } catch (err) {
+        console.error("Error creating offer:", err);
       }
-    });
+    };
 
-    socket.on("signal", async (fromSocketId, data) => {
+    const handleSignal = async (fromSocketId, data) => {
       remoteSocketIdRef.current = fromSocketId;
-      const peer = createPeer();
+      const peer = createPeer(fromSocketId);
 
       if (data.type === "offer") {
-        await peer.setRemoteDescription(data);
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        socket.emit("signal", fromSocketId, answer);
+        try {
+          await peer.setRemoteDescription(data);
+
+          // FLUSH PENDING ICE
+          if (pendingIceRef.current.length > 0) {
+            for (const candidate of pendingIceRef.current) {
+              await peer.addIceCandidate(candidate);
+            }
+            pendingIceRef.current = [];
+          }
+
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          socket.emit("signal", fromSocketId, answer);
+
+          // Flush local candidates
+          if (pendingLocalIceRef.current.length > 0) {
+            pendingLocalIceRef.current.forEach(candidate => {
+              socket.emit("signal", fromSocketId, candidate);
+            });
+            pendingLocalIceRef.current = [];
+          }
+
+        } catch (err) {
+          console.error("Error handling offer:", err);
+        }
       } else if (data.type === "answer") {
-        await peer.setRemoteDescription(data);
-      } else {
-        if (peer.remoteDescription) {
-          await peer.addIceCandidate(data);
-        } else {
-          pendingIceRef.current.push(data);
+        try {
+          await peer.setRemoteDescription(data);
+          // FLUSH PENDING ICE
+          if (pendingIceRef.current.length > 0) {
+            for (const candidate of pendingIceRef.current) {
+              await peer.addIceCandidate(candidate);
+            }
+            pendingIceRef.current = [];
+          }
+        } catch (err) {
+          console.error("Error handling answer:", err);
+        }
+      } else if (data.candidate || data.sdpMid) { // ICE Candidate
+        try {
+          if (peer.remoteDescription) {
+            await peer.addIceCandidate(data);
+          } else {
+            pendingIceRef.current.push(data);
+          }
+        } catch (err) {
+          console.error("Error adding ice candidate", err);
         }
       }
-    });
+    };
 
-    socket.on("user-left", () => {
+    const handleUserLeft = () => {
       showMessage("User left");
-      peerRef.current?.close();
-      peerRef.current = null;
+      if (peerRef.current) {
+        peerRef.current.close();
+        peerRef.current = null;
+      }
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = null;
       }
-    });
+      remoteSocketIdRef.current = null;
+      pendingIceRef.current = [];
+      pendingLocalIceRef.current = [];
+    };
 
-    /* AFTER registering listeners */
+    socket.on("user-joined", handleUserJoined);
+    socket.on("signal", handleSignal);
+    socket.on("user-left", handleUserLeft);
+
+    /* INIT */
     const init = async () => {
       await startMedia();
-      createPeer(); // 🔥 important
       socket.emit("join-call", meetingCode);
     };
 
     init();
 
     return () => {
-      socket.off();
-      peerRef.current?.close();
+      socket.off("user-joined", handleUserJoined);
+      socket.off("signal", handleSignal);
+      socket.off("user-left", handleUserLeft);
+
+      if (peerRef.current) {
+        peerRef.current.close();
+        peerRef.current = null;
+      }
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(t => t.stop());
+      }
     };
   }, [meetingCode]);
 

@@ -18,37 +18,21 @@ export const connectToSocket = (server) => {
     console.log("SOMETHING CONNECTED");
 
     socket.on("join-call", (data) => {
-      // Handle both old format (string) and new format (object with user data)
       const path = typeof data === "string" ? data : data.meetingCode;
-      const userData = typeof data === "object" ? data : null;
+      const userData = typeof data === "object" ? data : {};
 
       if (connections[path] === undefined) {
         connections[path] = [];
       }
       connections[path].push(socket.id);
-
       timeOnline[socket.id] = new Date();
 
-      // Emit user-joined with user data to all users in the room
-      for (let a = 0; a < connections[path].length; a++) {
-        io.to(connections[path][a]).emit(
-          "user-joined",
-          socket.id,
-          connections[path],
-          userData, // Pass user data (name, email, etc)
-        );
-      }
-
-      if (messages[path] !== undefined) {
-        for (let a = 0; a < messages[path].length; ++a) {
-          io.to(socket.id).emit(
-            "chat-message",
-            messages[path][a]["data"],
-            messages[path][a]["sender"],
-            messages[path][a]["socket-id-sender"],
-          );
+      // Notify others in the room
+      connections[path].forEach((peerId) => {
+        if (peerId !== socket.id) {
+          io.to(peerId).emit("user-joined", socket.id, connections[path], userData);
         }
-      }
+      });
     });
 
     socket.on("signal", (toId, message) => {
@@ -61,13 +45,12 @@ export const connectToSocket = (server) => {
           if (!isFound && roomValue.includes(socket.id)) {
             return [roomKey, true];
           }
-
           return [room, isFound];
         },
-        ["", false],
+        ["", false]
       );
 
-      if (found === true) {
+      if (found) {
         connections[matchingRoom].forEach((elem) => {
           if (elem !== socket.id) {
             io.to(elem).emit("media-status", data);
@@ -77,7 +60,6 @@ export const connectToSocket = (server) => {
     });
 
     socket.on("leave-call", (path) => {
-      console.log("User leaving call:", socket.id, "from room:", path);
       if (connections[path]) {
         const index = connections[path].indexOf(socket.id);
         if (index > -1) {
@@ -98,23 +80,20 @@ export const connectToSocket = (server) => {
           if (!isFound && roomValue.includes(socket.id)) {
             return [roomKey, true];
           }
-
           return [room, isFound];
         },
-        ["", false],
+        ["", false]
       );
 
-      if (found === true) {
+      if (found) {
         if (messages[matchingRoom] === undefined) {
           messages[matchingRoom] = [];
         }
-
         messages[matchingRoom].push({
           sender: sender,
           data: data,
           "socket-id-sender": socket.id,
         });
-        console.log("message", matchingRoom, ":", sender, data);
 
         connections[matchingRoom].forEach((elem) => {
           io.to(elem).emit("chat-message", data, sender, socket.id);
@@ -123,29 +102,32 @@ export const connectToSocket = (server) => {
     });
 
     socket.on("disconnect", () => {
-      var diffTime = Math.abs(timeOnline[socket.id] - new Date());
+      const socketId = socket.id;
 
-      var key;
+      // Find the room the user was in
+      let foundRoom = null;
+      for (const [room, users] of Object.entries(connections)) {
+        if (users.includes(socketId)) {
+          foundRoom = room;
+          break;
+        }
+      }
 
-      for (const [k, v] of JSON.parse(
-        JSON.stringify(Object.entries(connections)),
-      )) {
-        for (let a = 0; a < v.length; ++a) {
-          if (v[a] === socket.id) {
-            key = k;
+      if (foundRoom) {
+        // Remove user from room
+        const index = connections[foundRoom].indexOf(socketId);
+        if (index > -1) {
+          connections[foundRoom].splice(index, 1);
+        }
 
-            for (let a = 0; a < connections[key].length; ++a) {
-              io.to(connections[key][a]).emit("user-left", socket.id);
-            }
+        // Notify others
+        connections[foundRoom].forEach((peerId) => {
+          io.to(peerId).emit("user-left", socketId);
+        });
 
-            var index = connections[key].indexOf(socket.id);
-
-            connections[key].splice(index, 1);
-
-            if (connections[key].length === 0) {
-              delete connections[key];
-            }
-          }
+        // Cleanup empty room
+        if (connections[foundRoom].length === 0) {
+          delete connections[foundRoom];
         }
       }
     });
