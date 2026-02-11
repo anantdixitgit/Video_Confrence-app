@@ -66,8 +66,9 @@ function VideoMeet() {
         audio: true,
       });
 
-      stream.getAudioTracks().forEach((t) => (t.enabled = false));
-      stream.getVideoTracks().forEach((t) => (t.enabled = false));
+      // Default: Camera and Mic ON
+      setMicOn(true);
+      setCameraOn(true);
 
       localStreamRef.current = stream;
 
@@ -306,18 +307,24 @@ function VideoMeet() {
   };
 
   const toggleCamera = async () => {
+    if (!localStreamRef.current) return;
     const track = localStreamRef.current.getVideoTracks()[0];
     if (!track) return;
 
     const newState = !cameraOn;
     setCameraOn(newState);
 
+    if (newState) {
+      track.enabled = true;
+      localVideoRef.current.srcObject = localStreamRef.current;
+    } else {
+      track.enabled = false;
+    }
+
     if (peerRef.current?._senders.video) {
       if (newState) {
-        track.enabled = true;
         await peerRef.current._senders.video.replaceTrack(track);
       } else {
-        track.enabled = false;
         await peerRef.current._senders.video.replaceTrack(
           createBlackVideoTrack(),
         );
