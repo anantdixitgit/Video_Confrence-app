@@ -7,12 +7,17 @@ function JoinMeeting() {
   const [meetingCode, setMeetingCode] = useState("");
   const navigate = useNavigate();
 
+  // For local development
+  // const SERVER_URL = "http://localhost:5000";
+  // For production
+  const SERVER_URL = "https://video-confrence-app.onrender.com";
+
   // Create meeting
   const handleCreateMeeting = async () => {
     try {
       console.log("before createmeeting call");
       const res = await axios.post(
-        "https://video-confrence-app.onrender.com/api/v1/meeting/create",
+        `${SERVER_URL}/api/v1/meeting/create`,
         {},
         { withCredentials: true },
       );
@@ -36,7 +41,7 @@ function JoinMeeting() {
 
     try {
       const res = await axios.post(
-        "https://video-confrence-app.onrender.com/api/v1/meeting/join",
+        `${SERVER_URL}/api/v1/meeting/join`,
         { meetingCode },
         { withCredentials: true },
       );
@@ -45,8 +50,8 @@ function JoinMeeting() {
         navigate(`/meet/${meetingCode}`);
       }
     } catch (error) {
-      console.error("Join meeting error:", error);
-      alert("Invalid meeting ID");
+      console.log(error);
+      alert(error.response?.data?.message || "Failed to join meeting");
     }
   };
 

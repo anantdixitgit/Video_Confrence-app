@@ -259,6 +259,11 @@ function VideoMeet() {
 
     /* INIT */
     const init = async () => {
+      // Connect socket manually
+      if (!socket.connected) {
+        socket.connect();
+      }
+
       await startMedia();
       socket.emit("join-call", meetingCode);
     };
@@ -276,6 +281,10 @@ function VideoMeet() {
       }
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+      // Disconnect socket to prevent ghost connections
+      if (socket.connected) {
+        socket.disconnect();
       }
     };
   }, [meetingCode]);

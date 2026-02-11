@@ -13,6 +13,7 @@ export const socket = io(SERVER_URL, {
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   reconnectionAttempts: 5,
+  autoConnect: false, // Prevent auto connection
 });
 
 socket.on("connect", () => {
