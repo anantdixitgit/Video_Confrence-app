@@ -12,9 +12,7 @@ import {
   faPhoneSlash,
 } from "@fortawesome/free-solid-svg-icons";
 
-/* ---------- ICE CONFIG ---------- */
-/* ⚠️ For production, generate TURN credentials dynamically */
-/* ---------- ICE CONFIG ---------- */
+
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -58,7 +56,7 @@ function VideoMeet() {
     return canvas.captureStream().getVideoTracks()[0];
   };
 
-  /* ---------- START MEDIA ---------- */
+  //start media
   const startMedia = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -66,7 +64,7 @@ function VideoMeet() {
         audio: true,
       });
 
-      // Default: Camera and Mic ON
+     
       setMicOn(true);
       setCameraOn(true);
 
@@ -80,7 +78,7 @@ function VideoMeet() {
     }
   };
 
-  /* ---------- ADD LOCAL TRACKS ---------- */
+  //adding track
   const addLocalTracks = (peer) => {
     if (!localStreamRef.current) return;
 
@@ -97,11 +95,9 @@ function VideoMeet() {
     });
   }
 
-  /* ---------- CREATE PEER ---------- */
+  //creating peer
   const createPeer = (targetSocketId) => {
-    // If peer exists and is not closed, return it. 
-    // BUT we need to be careful about state. 
-    // Simplest approach for 1:1: close existing if different user (not handled here but assumes 1:1)
+    
     if (peerRef.current) {
       if (peerRef.current.connectionState !== 'closed') {
         return peerRef.current;
@@ -137,7 +133,7 @@ function VideoMeet() {
     peer.onconnectionstatechange = () => {
       console.log("Connection state:", peer.connectionState);
       if (peer.connectionState === 'disconnected' || peer.connectionState === 'failed') {
-        // Optional: handle retry or cleanup
+       
       }
     };
 
@@ -148,7 +144,7 @@ function VideoMeet() {
     return peer;
   };
 
-  /* ---------- SOCKET + INIT ---------- */
+  //socketinitialise
   useEffect(() => {
 
     const handleUserJoined = async (socketId, users) => {
@@ -283,14 +279,14 @@ function VideoMeet() {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(t => t.stop());
       }
-      // Disconnect socket to prevent ghost connections
+  
       if (socket.connected) {
         socket.disconnect();
       }
     };
   }, [meetingCode]);
 
-  /* ---------- CONTROLS ---------- */
+  //control
   const toggleMic = async () => {
     const track = localStreamRef.current.getAudioTracks()[0];
     if (!track) return;
