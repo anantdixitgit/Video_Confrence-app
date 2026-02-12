@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import "./JoinMeet.css";
 
 function JoinMeeting() {
@@ -8,9 +9,9 @@ function JoinMeeting() {
   const navigate = useNavigate();
 
   // For local development
-  // const SERVER_URL = "http://localhost:5000";
+  const SERVER_URL = "http://localhost:5000";
   // For production
-  const SERVER_URL = "https://video-confrence-app.onrender.com";
+  // const SERVER_URL = "https://video-confrence-app.onrender.com";
 
   // Create meeting
   const handleCreateMeeting = async () => {
@@ -28,14 +29,14 @@ function JoinMeeting() {
       }
     } catch (error) {
       console.error("Create meeting error:", error);
-      alert("Failed to create meeting");
+      toast.error("Failed to create meeting");
     }
   };
 
   // Join meeting
   const handleJoinMeeting = async () => {
     if (!meetingCode) {
-      alert("Enter meeting ID");
+      toast.warning("Enter meeting ID");
       return;
     }
 
@@ -51,7 +52,7 @@ function JoinMeeting() {
       }
     } catch (error) {
       console.log(error);
-      alert(error.response?.data?.message || "Failed to join meeting");
+      toast.error(error.response?.data?.message || "Failed to join meeting");
     }
   };
 

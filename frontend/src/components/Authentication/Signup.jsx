@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { toast } from "react-toastify";
 import "./authSplit.css";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -22,7 +23,7 @@ function Signup() {
       setLoading(true);
 
       const res = await axios.post(
-        "https://video-confrence-app.onrender.com/api/v1/user/register",
+        "http://localhost:5000/api/v1/user/register",
         {
           fullname,
           username,
@@ -31,11 +32,11 @@ function Signup() {
       );
 
       if (res.data.success) {
-        alert("Signup successful");
+        toast.success("Signup successful");
         navigate("/login");
       }
     } catch (err) {
-      alert(err.response?.data?.message || "Signup failed");
+      toast.error(err.response?.data?.message || "Signup failed");
     } finally {
       setLoading(false);
     }

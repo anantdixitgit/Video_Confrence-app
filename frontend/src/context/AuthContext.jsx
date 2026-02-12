@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     try {
       const res = await axios.get(
-        "https://video-confrence-app.onrender.com/api/v1/user/authenticate",
+        "http://localhost:5000/api/v1/user/authenticate",
         { withCredentials: true },
       );
 
@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
   // Logout helper
   const logout = async () => {
     await axios.post(
-      "https://video-confrence-app.onrender.com/api/v1/user/logout",
+      "http://localhost:5000/api/v1/user/logout",
       {},
       { withCredentials: true },
     );

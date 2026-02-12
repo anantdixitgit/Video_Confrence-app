@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import "./landing.css";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { toast } from "react-toastify";
 
 function Landing() {
   const navigate = useNavigate();
@@ -46,7 +47,7 @@ function Landing() {
       setIsLoggedIn(false);
       navigate("/login");
     } catch {
-      alert("Logout failed");
+      toast.error("Logout failed");
     }
   };
 

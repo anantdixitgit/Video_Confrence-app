@@ -1,10 +1,10 @@
 import { io } from "socket.io-client";
 
 // For local development
-// const SERVER_URL = "http://localhost:5000";
+const SERVER_URL = "http://localhost:5000";
 
 // For production (Render Backend URL)
-const SERVER_URL = "https://video-confrence-app.onrender.com";
+// const SERVER_URL = "https://video-confrence-app.onrender.com";
 
 export const socket = io(SERVER_URL, {
   transports: ["websocket"],

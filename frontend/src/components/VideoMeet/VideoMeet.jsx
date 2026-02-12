@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { socket } from "../../utils/socket";
 import "./VideoMeet.css";
+import { toast } from "react-toastify";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -37,13 +38,6 @@ function VideoMeet() {
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
-  const [message, setMessage] = useState("");
-
-  /* ---------- MESSAGE ---------- */
-  const showMessage = (msg) => {
-    setMessage(msg);
-    setTimeout(() => setMessage(""), 3000);
-  };
 
   /* ---------- BLACK VIDEO TRACK ---------- */
   const createBlackVideoTrack = () => {
@@ -77,6 +71,7 @@ function VideoMeet() {
       }
     } catch (error) {
       console.error("Error accessing media:", error);
+      toast.error("Failed to access camera/microphone. Please check permissions.");
     }
   };
 
@@ -136,8 +131,12 @@ function VideoMeet() {
     // Connection state
     peer.onconnectionstatechange = () => {
       console.log("Connection state:", peer.connectionState);
-      if (peer.connectionState === 'disconnected' || peer.connectionState === 'failed') {
-        // Optional: handle retry or cleanup
+      if (peer.connectionState === 'connected') {
+        toast.success("✅ Connected successfully");
+      } else if (peer.connectionState === 'disconnected') {
+        toast.warning("⚠️ Connection lost");
+      } else if (peer.connectionState === 'failed') {
+        toast.error("❌ Connection failed");
       }
     };
 
@@ -156,7 +155,7 @@ function VideoMeet() {
 
       console.log("User joined:", socketId);
       remoteSocketIdRef.current = socketId;
-      showMessage("User joined");
+      toast.info("👋 A user joined the meeting");
 
       // Cleanup separate peer if needed (though we assume 1:1)
       if (peerRef.current) {
@@ -241,7 +240,7 @@ function VideoMeet() {
     };
 
     const handleUserLeft = () => {
-      showMessage("User left");
+      toast.warning("👋 User left the meeting");
       if (peerRef.current) {
         peerRef.current.close();
         peerRef.current = null;
@@ -343,7 +342,7 @@ function VideoMeet() {
   return (
     <div className="video-page">
       <h3>Meeting ID: {meetingCode}</h3>
-      {message && <div className="toast">{message}</div>}
+
 
       <div className="videos">
         <div className="video-box">

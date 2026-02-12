@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import axios from "axios";
+import { toast } from "react-toastify";
 import "./authSplit.css";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -18,7 +19,7 @@ function Login() {
     e.preventDefault();
 
     if (!username || !password) {
-      alert("Please fill all fields");
+      toast.warning("Please fill all fields");
       return;
     }
 
@@ -28,7 +29,7 @@ function Login() {
       setLoading(true); // ✅ start loader
 
       const res = await axios.post(
-        "https://video-confrence-app.onrender.com/api/v1/user/login",
+        "http://localhost:5000/api/v1/user/login",
         { username, password },
         {
           withCredentials: true,
@@ -38,11 +39,11 @@ function Login() {
       await refreshAuth();
 
       if (res.data.success) {
-        alert("Login successful");
+        toast.success("Login successful");
         navigate("/meeting");
       }
     } catch (err) {
-      alert(err.response?.data?.message || "Invalid username or password");
+      toast.error(err.response?.data?.message || "Invalid username or password");
     } finally {
       setLoading(false); // ✅ stop loader
     }
@@ -79,7 +80,6 @@ function Login() {
               type="password"
               value={password}
               placeholder="Password"
-              className="auth-input"
               onChange={(e) => setPassword(e.target.value)}
               className="auth-input"
               required
