@@ -24,13 +24,18 @@ export const connectToSocket = (server) => {
       if (connections[path] === undefined) {
         connections[path] = [];
       }
+
+      const existingUsers = [...connections[path]]; // Get existing users BEFORE adding new
       connections[path].push(socket.id);
       timeOnline[socket.id] = new Date();
 
-      // Notify others in the room
+      // Send new user the list of existing users to create peers with
+      socket.emit("user-joined", existingUsers, socket.id, userData);
+
+      // Notify others in the room about new user
       connections[path].forEach((peerId) => {
         if (peerId !== socket.id) {
-          io.to(peerId).emit("user-joined", socket.id, connections[path], userData);
+          io.to(peerId).emit("user-joined", [socket.id], socket.id, userData);
         }
       });
     });
@@ -47,7 +52,7 @@ export const connectToSocket = (server) => {
           }
           return [room, isFound];
         },
-        ["", false]
+        ["", false],
       );
 
       if (found) {
@@ -82,7 +87,7 @@ export const connectToSocket = (server) => {
           }
           return [room, isFound];
         },
-        ["", false]
+        ["", false],
       );
 
       if (found) {

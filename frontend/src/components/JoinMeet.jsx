@@ -16,13 +16,11 @@ function JoinMeeting() {
   // Create meeting
   const handleCreateMeeting = async () => {
     try {
-      console.log("before createmeeting call");
       const res = await axios.post(
         `${SERVER_URL}/api/v1/meeting/create`,
         {},
         { withCredentials: true },
       );
-      console.log(res.data);
 
       if (res.data.success) {
         navigate(`/meet/${res.data.meetingCode}`);
@@ -51,7 +49,6 @@ function JoinMeeting() {
         navigate(`/meet/${meetingCode}`);
       }
     } catch (error) {
-      console.log(error);
       toast.error(error.response?.data?.message || "Failed to join meeting");
     }
   };

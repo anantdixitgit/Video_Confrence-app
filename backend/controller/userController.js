@@ -39,7 +39,7 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { username, password } = req.body;
-    console.log(username, password);
+
 
     if (!username || !password) {
       return res.status(400).json({
@@ -49,7 +49,7 @@ export const login = async (req, res) => {
     }
 
     const user = await User.findOne({ username });
-    console.log(user);
+
     if (!user) {
       return res.status(400).json({
         message: "Incorrect Username or password",
@@ -58,10 +58,10 @@ export const login = async (req, res) => {
     }
 
     const isPasswordMatch = await user.isPasswordCorrect(password);
-    console.log(isPasswordMatch);
+
 
     if (!isPasswordMatch) {
-      console.log("[LOGIN] Password mismatch");
+
       return res.status(400).json({
         message: "Incorrect Username or password",
         success: false,

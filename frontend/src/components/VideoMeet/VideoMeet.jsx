@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { socket } from "../../utils/socket";
 import "./VideoMeet.css";
 import { toast } from "react-toastify";
+import { useAuth } from "../../context/AuthContext";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -17,27 +18,26 @@ import {
 /* ⚠️ For production, generate TURN credentials dynamically */
 /* ---------- ICE CONFIG ---------- */
 const ICE_SERVERS = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-  ],
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
 function VideoMeet() {
   const { meetingCode } = useParams();
   const navigate = useNavigate();
+  const user = useAuth();
 
   const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
 
   const localStreamRef = useRef(null);
-  const peerRef = useRef(null);
-  const remoteSocketIdRef = useRef(null);
+  const peersRef = useRef(new Map()); // socketId -> RTCPeerConnection
+  const remoteStreamsRef = useRef(new Map()); // socketId -> MediaStream
 
-  const pendingIceRef = useRef([]);
-  const pendingLocalIceRef = useRef([]);
+  const pendingIceRef = useRef(new Map()); // socketId -> candidates
+  const pendingLocalIceRef = useRef(new Map()); // socketId -> candidates
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
+  const [participants, setParticipants] = useState([]);
 
   /* ---------- BLACK VIDEO TRACK ---------- */
   const createBlackVideoTrack = () => {
@@ -71,7 +71,9 @@ function VideoMeet() {
       }
     } catch (error) {
       console.error("Error accessing media:", error);
-      toast.error("Failed to access camera/microphone. Please check permissions.");
+      toast.error(
+        "Failed to access camera/microphone. Please check permissions.",
+      );
     }
   };
 
@@ -82,7 +84,7 @@ function VideoMeet() {
     localStreamRef.current.getTracks().forEach((track) => {
       // Check if track already added
       const senders = peer.getSenders();
-      const alreadyAdded = senders.some(player => player.track === track);
+      const alreadyAdded = senders.some((player) => player.track === track);
 
       if (!alreadyAdded) {
         const sender = peer.addTrack(track, localStreamRef.current);
@@ -90,148 +92,156 @@ function VideoMeet() {
         if (track.kind === "video") peer._senders.video = sender;
       }
     });
-  }
+  };
 
   /* ---------- CREATE PEER ---------- */
   const createPeer = (targetSocketId) => {
-    // If peer exists and is not closed, return it. 
-    // BUT we need to be careful about state. 
-    // Simplest approach for 1:1: close existing if different user (not handled here but assumes 1:1)
-    if (peerRef.current) {
-      if (peerRef.current.connectionState !== 'closed') {
-        return peerRef.current;
+    if (peersRef.current.has(targetSocketId)) {
+      const existingPeer = peersRef.current.get(targetSocketId);
+      if (existingPeer.connectionState !== "closed") {
+        return existingPeer;
       }
     }
 
     const peer = new RTCPeerConnection(ICE_SERVERS);
-    peerRef.current = peer;
     peer._senders = { audio: null, video: null };
 
-    // Attach local tracks
     addLocalTracks(peer);
 
-    // Remote stream
+    if (!pendingIceRef.current.has(targetSocketId)) {
+      pendingIceRef.current.set(targetSocketId, []);
+    }
+    if (!pendingLocalIceRef.current.has(targetSocketId)) {
+      pendingLocalIceRef.current.set(targetSocketId, []);
+    }
+
     peer.ontrack = (e) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = e.streams[0];
-      }
+      remoteStreamsRef.current.set(targetSocketId, e.streams[0]);
+      setParticipants((prev) => {
+        if (!prev.includes(targetSocketId)) {
+          return [...prev, targetSocketId];
+        }
+        return prev;
+      });
     };
 
-    // ICE candidate
     peer.onicecandidate = (e) => {
       if (!e.candidate) return;
-
       if (targetSocketId) {
         socket.emit("signal", targetSocketId, e.candidate);
-      } else {
-        pendingLocalIceRef.current.push(e.candidate);
       }
     };
 
-    // Connection state
     peer.onconnectionstatechange = () => {
-      console.log("Connection state:", peer.connectionState);
-      if (peer.connectionState === 'connected') {
-        toast.success("✅ Connected successfully");
-      } else if (peer.connectionState === 'disconnected') {
-        toast.warning("⚠️ Connection lost");
-      } else if (peer.connectionState === 'failed') {
+      if (peer.connectionState === "connected") {
+        toast.success("✅ Connected");
+      } else if (peer.connectionState === "failed") {
         toast.error("❌ Connection failed");
       }
     };
 
-    peer.oniceconnectionstatechange = () => {
-      console.log("ICE state:", peer.iceConnectionState);
-    };
-
+    peersRef.current.set(targetSocketId, peer);
     return peer;
   };
 
   /* ---------- SOCKET + INIT ---------- */
   useEffect(() => {
+    const handleUserJoined = async (userIds, remoteSocketId, userData) => {
+      if (remoteSocketId === socket.id) return;
+      toast.info("👋 A user joined");
 
-    const handleUserJoined = async (socketId, users) => {
-      if (socketId === socket.id) return;
+      // Create peers with all existing users
+      for (const userId of userIds) {
+        if (userId === socket.id) continue;
+        const peer = createPeer(userId);
+        const pendingLocal = pendingLocalIceRef.current.get(userId) || [];
 
-      console.log("User joined:", socketId);
-      remoteSocketIdRef.current = socketId;
-      toast.info("👋 A user joined the meeting");
+        if (pendingLocal.length > 0) {
+          pendingLocal.forEach((cand) => socket.emit("signal", userId, cand));
+          pendingLocalIceRef.current.set(userId, []);
+        }
 
-      // Cleanup separate peer if needed (though we assume 1:1)
-      if (peerRef.current) {
-        peerRef.current.close();
-        peerRef.current = null;
+        try {
+          const offer = await peer.createOffer();
+          await peer.setLocalDescription(offer);
+          socket.emit("signal", userId, offer);
+        } catch (err) {
+          console.error("Error creating offer:", err);
+        }
       }
 
-      const peer = createPeer(socketId);
+      // Also create peer with the new user
+      if (remoteSocketId) {
+        const peer = createPeer(remoteSocketId);
+        const pendingLocal =
+          pendingLocalIceRef.current.get(remoteSocketId) || [];
 
-      // Flush local candidates now that we know who to send to
-      if (pendingLocalIceRef.current.length > 0) {
-        pendingLocalIceRef.current.forEach(candidate => {
-          socket.emit("signal", socketId, candidate);
-        });
-        pendingLocalIceRef.current = [];
-      }
+        if (pendingLocal.length > 0) {
+          pendingLocal.forEach((cand) =>
+            socket.emit("signal", remoteSocketId, cand),
+          );
+          pendingLocalIceRef.current.set(remoteSocketId, []);
+        }
 
-      try {
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-        socket.emit("signal", socketId, offer);
-      } catch (err) {
-        console.error("Error creating offer:", err);
+        try {
+          const offer = await peer.createOffer();
+          await peer.setLocalDescription(offer);
+          socket.emit("signal", remoteSocketId, offer);
+        } catch (err) {
+          console.error("Error creating offer:", err);
+        }
       }
     };
 
     const handleSignal = async (fromSocketId, data) => {
-      remoteSocketIdRef.current = fromSocketId;
       const peer = createPeer(fromSocketId);
 
       if (data.type === "offer") {
         try {
           await peer.setRemoteDescription(data);
 
-          // FLUSH PENDING ICE
-          if (pendingIceRef.current.length > 0) {
-            for (const candidate of pendingIceRef.current) {
-              await peer.addIceCandidate(candidate);
-            }
-            pendingIceRef.current = [];
+          const pending = pendingIceRef.current.get(fromSocketId) || [];
+          for (const cand of pending) {
+            try {
+              await peer.addIceCandidate(cand);
+            } catch (e) {}
           }
+          pendingIceRef.current.set(fromSocketId, []);
 
           const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
           socket.emit("signal", fromSocketId, answer);
 
-          // Flush local candidates
-          if (pendingLocalIceRef.current.length > 0) {
-            pendingLocalIceRef.current.forEach(candidate => {
-              socket.emit("signal", fromSocketId, candidate);
-            });
-            pendingLocalIceRef.current = [];
-          }
-
+          const pendingLocal =
+            pendingLocalIceRef.current.get(fromSocketId) || [];
+          pendingLocal.forEach((cand) =>
+            socket.emit("signal", fromSocketId, cand),
+          );
+          pendingLocalIceRef.current.set(fromSocketId, []);
         } catch (err) {
           console.error("Error handling offer:", err);
         }
       } else if (data.type === "answer") {
         try {
           await peer.setRemoteDescription(data);
-          // FLUSH PENDING ICE
-          if (pendingIceRef.current.length > 0) {
-            for (const candidate of pendingIceRef.current) {
-              await peer.addIceCandidate(candidate);
-            }
-            pendingIceRef.current = [];
+          const pending = pendingIceRef.current.get(fromSocketId) || [];
+          for (const cand of pending) {
+            try {
+              await peer.addIceCandidate(cand);
+            } catch (e) {}
           }
+          pendingIceRef.current.set(fromSocketId, []);
         } catch (err) {
           console.error("Error handling answer:", err);
         }
-      } else if (data.candidate || data.sdpMid) { // ICE Candidate
+      } else if (data.candidate || data.sdpMid) {
         try {
           if (peer.remoteDescription) {
             await peer.addIceCandidate(data);
           } else {
-            pendingIceRef.current.push(data);
+            const pending = pendingIceRef.current.get(fromSocketId) || [];
+            pending.push(data);
+            pendingIceRef.current.set(fromSocketId, pending);
           }
         } catch (err) {
           console.error("Error adding ice candidate", err);
@@ -239,18 +249,16 @@ function VideoMeet() {
       }
     };
 
-    const handleUserLeft = () => {
-      toast.warning("👋 User left the meeting");
-      if (peerRef.current) {
-        peerRef.current.close();
-        peerRef.current = null;
+    const handleUserLeft = (socketId) => {
+      toast.warning("👋 User left");
+      if (peersRef.current.has(socketId)) {
+        peersRef.current.get(socketId).close();
+        peersRef.current.delete(socketId);
       }
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
-      }
-      remoteSocketIdRef.current = null;
-      pendingIceRef.current = [];
-      pendingLocalIceRef.current = [];
+      remoteStreamsRef.current.delete(socketId);
+      pendingIceRef.current.delete(socketId);
+      pendingLocalIceRef.current.delete(socketId);
+      setParticipants((prev) => prev.filter((id) => id !== socketId));
     };
 
     socket.on("user-joined", handleUserJoined);
@@ -259,13 +267,13 @@ function VideoMeet() {
 
     /* INIT */
     const init = async () => {
-      // Connect socket manually
       if (!socket.connected) {
         socket.connect();
       }
 
       await startMedia();
       socket.emit("join-call", meetingCode);
+      setParticipants([]);
     };
 
     init();
@@ -275,14 +283,11 @@ function VideoMeet() {
       socket.off("signal", handleSignal);
       socket.off("user-left", handleUserLeft);
 
-      if (peerRef.current) {
-        peerRef.current.close();
-        peerRef.current = null;
-      }
+      peersRef.current.forEach((peer) => peer.close());
+      peersRef.current.clear();
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(t => t.stop());
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
       }
-      // Disconnect socket to prevent ghost connections
       if (socket.connected) {
         socket.disconnect();
       }
@@ -298,11 +303,11 @@ function VideoMeet() {
     track.enabled = newState;
     setMicOn(newState);
 
-    if (peerRef.current?._senders.audio) {
-      await peerRef.current._senders.audio.replaceTrack(
-        newState ? track : null,
-      );
-    }
+    peersRef.current.forEach((peer) => {
+      if (peer._senders.audio) {
+        peer._senders.audio.replaceTrack(newState ? track : null);
+      }
+    });
   };
 
   const toggleCamera = async () => {
@@ -312,28 +317,22 @@ function VideoMeet() {
 
     const newState = !cameraOn;
     setCameraOn(newState);
+    track.enabled = newState;
 
-    if (newState) {
-      track.enabled = true;
-      localVideoRef.current.srcObject = localStreamRef.current;
-    } else {
-      track.enabled = false;
-    }
-
-    if (peerRef.current?._senders.video) {
-      if (newState) {
-        await peerRef.current._senders.video.replaceTrack(track);
-      } else {
-        await peerRef.current._senders.video.replaceTrack(
-          createBlackVideoTrack(),
-        );
+    peersRef.current.forEach((peer) => {
+      if (peer._senders.video) {
+        if (newState) {
+          peer._senders.video.replaceTrack(track);
+        } else {
+          peer._senders.video.replaceTrack(createBlackVideoTrack());
+        }
       }
-    }
+    });
   };
 
   const leaveMeeting = () => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    peerRef.current?.close();
+    peersRef.current.forEach((peer) => peer.close());
     socket.emit("leave-call", meetingCode);
     socket.disconnect();
     navigate("/");
@@ -341,19 +340,33 @@ function VideoMeet() {
 
   return (
     <div className="video-page">
-      <h3>Meeting ID: {meetingCode}</h3>
+      <div className="meeting-header">
+        <h2>Meeting: {meetingCode}</h2>
+        <span className="participant-count">👥 {participants.length + 1}</span>
+      </div>
 
-
-      <div className="videos">
+      <div className="videos-grid">
+        {/* Local video */}
         <div className="video-box">
           <video ref={localVideoRef} autoPlay muted playsInline />
           <span>You</span>
         </div>
 
-        <div className="video-box">
-          <video ref={remoteVideoRef} autoPlay playsInline />
-          <span>Participant</span>
-        </div>
+        {/* Remote videos */}
+        {participants.map((socketId) => (
+          <div key={socketId} className="video-box">
+            <video
+              autoPlay
+              playsInline
+              ref={(video) => {
+                if (video && remoteStreamsRef.current.get(socketId)) {
+                  video.srcObject = remoteStreamsRef.current.get(socketId);
+                }
+              }}
+            />
+            <span>Participant</span>
+          </div>
+        ))}
       </div>
 
       <div className="controls-bar">

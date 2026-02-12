@@ -3,7 +3,7 @@ import User from "../Models/userSchema.js";
 
 export const verifyJWT = async (req, res, next) => {
   try {
-    console.log("in the verifyJwt middleware");
+
     const token = req.cookies?.token;
 
     if (!token) {
@@ -23,7 +23,7 @@ export const verifyJWT = async (req, res, next) => {
     }
 
     const user = await User.findById(decodedToken?._id).select("-password ");
-    // console.log("user", user);
+
     if (!user) {
       return res.status(501).json({
         message: "user not found",

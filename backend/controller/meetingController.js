@@ -2,10 +2,10 @@ import Meeting from "../Models/meetingSchema.js";
 
 export const createMeeting = async (req, res) => {
   try {
-    console.log("createMeeting");
+
     const meetingCode = Math.random().toString(36).substring(2, 10);
 
-    //console.log("user in meeting", req.user._id, meetingCode);
+
     const meeting = await Meeting.create({
       user_id: req.user._id,
       meetingCode,
