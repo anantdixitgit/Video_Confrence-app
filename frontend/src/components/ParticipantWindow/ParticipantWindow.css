@@ -1,0 +1,157 @@
+/* ========== PARTICIPANT WINDOW PANEL ========== */
+.participant-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(10px);
+  border-left: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  z-index: 999;
+
+  transform: translateX(100%);
+  transition: transform 0.3s ease-out;
+}
+
+.participant-panel.open {
+  transform: translateX(0);
+}
+
+/* ========== PANEL HEADER ========== */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(30, 41, 59, 0.5);
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  color: #f1f5f9;
+  background: rgba(148, 163, 184, 0.1);
+}
+
+/* ========== PARTICIPANT ITEMS CONTAINER ========== */
+.participant-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* ========== PARTICIPANT ITEM ========== */
+.participant-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  transition: all 0.2s ease;
+}
+
+.participant-item:hover {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(148, 163, 184, 0.2);
+  transform: translateX(-4px);
+}
+
+/* ========== PARTICIPANT INFO ========== */
+.participant-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.participant-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #f1f5f9;
+}
+
+/* ========== HOST BADGE ========== */
+.host-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1f2937;
+  padding: 4px 8px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.host-badge svg {
+  font-size: 10px;
+}
+
+/* ========== PARTICIPANT STATUS ========== */
+.participant-status {
+  font-size: 12px;
+  color: #86efac;
+  font-weight: 500;
+}
+
+/* ========== EMPTY STATE ========== */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* ========== SCROLLBAR STYLING ========== */
+.participant-items::-webkit-scrollbar {
+  width: 6px;
+}
+
+.participant-items::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.participant-items::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
+.participant-items::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 768px) {
+  .participant-panel {
+    width: 100%;
+  }
+}

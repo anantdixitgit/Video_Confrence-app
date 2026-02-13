@@ -34,6 +34,18 @@
   border: 1px solid rgba(37, 99, 235, 0.3);
 }
 
+/* ========== NEW: CLICKABLE PARTICIPANT BADGE (Phase 3) ========== */
+.participant-count.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.participant-count.clickable:hover {
+  background: rgba(37, 99, 235, 0.2);
+  border-color: rgba(37, 99, 235, 0.5);
+  transform: scale(1.05);
+}
+
 /* Grid Video Layout */
 .videos-grid {
   flex: 1;

@@ -4,6 +4,8 @@ import { socket } from "../../utils/socket";
 import "./VideoMeet.css";
 import { toast } from "react-toastify";
 import { useAuth } from "../../context/AuthContext";
+// ========== NEW: IMPORT PARTICIPANT WINDOW (Phase 3) ==========
+import ParticipantWindow from "../ParticipantWindow/ParticipantWindow";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -17,6 +19,7 @@ import {
 /* ---------- ICE CONFIG ---------- */
 /* ⚠️ For production, generate TURN credentials dynamically */
 /* ---------- ICE CONFIG ---------- */
+console.log("hello");
 const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -24,7 +27,8 @@ const ICE_SERVERS = {
 function VideoMeet() {
   const { meetingCode } = useParams();
   const navigate = useNavigate();
-  const user = useAuth();
+  // ========== UPDATED: GET USER AND LOADING STATE ==========
+  const { user, loading: authLoading } = useAuth();
 
   const localVideoRef = useRef(null);
 
@@ -34,10 +38,16 @@ function VideoMeet() {
 
   const pendingIceRef = useRef(new Map()); // socketId -> candidates
   const pendingLocalIceRef = useRef(new Map()); // socketId -> candidates
+  // ========== NEW: TRACK IF ALREADY INITIALIZED ==========
+  const initializeRef = useRef(false);
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [participants, setParticipants] = useState([]);
+  // ========== NEW: DETAILED PARTICIPANT LIST (Phase 2) ==========
+  const [participantsList, setParticipantsList] = useState([]);
+  // ========== NEW: PARTICIPANT PANEL STATE (Phase 3) ==========
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   /* ---------- BLACK VIDEO TRACK ---------- */
   const createBlackVideoTrack = () => {
@@ -261,27 +271,72 @@ function VideoMeet() {
       setParticipants((prev) => prev.filter((id) => id !== socketId));
     };
 
+    // ========== NEW: HANDLE PARTICIPANT LIST UPDATES (Phase 2) ==========
+    const handleParticipantList = (list) => {
+      // list = [{socketId, name, isHost, joinedAt}, ...]
+      setParticipantsList(list);
+      console.log("Participants updated:", list);
+    };
+
     socket.on("user-joined", handleUserJoined);
     socket.on("signal", handleSignal);
     socket.on("user-left", handleUserLeft);
+    // ========== NEW: LISTEN FOR PARTICIPANT LIST CHANGES ==========
+    socket.on("participant-list", handleParticipantList);
 
     /* INIT */
     const init = async () => {
+      // ========== UPDATED: PREVENT DUPLICATE INITIALIZATION ==========
+      if (initializeRef.current) {
+        console.log("Already initialized, skipping...");
+        return;
+      }
+
+      // ========== UPDATED: WAIT FOR AUTH TO LOAD ==========
+      if (authLoading) {
+        console.log("Waiting for auth to load...");
+        return;
+      }
+
+      if (!user || !user._id) {
+        console.error("User not authenticated");
+        toast.error("Please login first");
+        navigate("/login");
+        return;
+      }
+
       if (!socket.connected) {
         socket.connect();
       }
 
       await startMedia();
-      socket.emit("join-call", meetingCode);
+
+      // ========== UPDATED: SEND USER DATA WITH CORRECT STRUCTURE ==========
+      const joinData = {
+        meetingCode: meetingCode,
+        userId: user._id, // MongoDB ObjectId of the user
+        userName: user.fullname || user.username || "Anonymous", // User's full name or username
+      };
+
+      console.log("Emitting join-call with data:", joinData);
+      socket.emit("join-call", joinData);
       setParticipants([]);
+
+      // ========== NEW: MARK AS INITIALIZED ==========
+      initializeRef.current = true;
     };
 
-    init();
+    // ========== UPDATED: ONLY RUN INIT WHEN AUTH IS READY ==========
+    if (!authLoading && !initializeRef.current) {
+      init();
+    }
 
     return () => {
       socket.off("user-joined", handleUserJoined);
       socket.off("signal", handleSignal);
       socket.off("user-left", handleUserLeft);
+      // ========== NEW: CLEANUP PARTICIPANT LIST LISTENER ==========
+      socket.off("participant-list", handleParticipantList);
 
       peersRef.current.forEach((peer) => peer.close());
       peersRef.current.clear();
@@ -292,7 +347,7 @@ function VideoMeet() {
         socket.disconnect();
       }
     };
-  }, [meetingCode]);
+  }, [meetingCode, authLoading, user, navigate]);
 
   /* ---------- CONTROLS ---------- */
   const toggleMic = async () => {
@@ -342,7 +397,14 @@ function VideoMeet() {
     <div className="video-page">
       <div className="meeting-header">
         <h2>Meeting: {meetingCode}</h2>
-        <span className="participant-count">👥 {participants.length + 1}</span>
+        {/* ========== NEW: CLICKABLE PARTICIPANT BADGE (Phase 3) ========== */}
+        <span
+          className="participant-count clickable"
+          onClick={() => setIsPanelOpen(!isPanelOpen)}
+          title="Click to view participants"
+        >
+          👥 {participantsList.length}
+        </span>
       </div>
 
       <div className="videos-grid">
@@ -388,6 +450,13 @@ function VideoMeet() {
           <FontAwesomeIcon icon={faPhoneSlash} />
         </button>
       </div>
+
+      {/* ========== NEW: PARTICIPANT WINDOW PANEL (Phase 3) ========== */}
+      <ParticipantWindow
+        isOpen={isPanelOpen}
+        onClose={() => setIsPanelOpen(false)}
+        participantsList={participantsList}
+      />
     </div>
   );
 }
