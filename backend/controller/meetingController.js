@@ -3,19 +3,40 @@ import { getActiveMeetings } from "./socketManager.js";
 
 export const createMeeting = async (req, res) => {
   try {
-    const meetingCode = Math.random().toString(36).substring(2, 10);
+    let meetingCode;
+    let meeting;
+    let attempts = 0;
+    const maxAttempts = 5;
 
-    const meeting = await Meeting.create({
+    // Generate unique meeting code (with retry logic)
+    while (attempts < maxAttempts) {
+      meetingCode = Math.random().toString(36).substring(2, 10);
+      meeting = await Meeting.findOne({ meetingCode }).lean();
+      if (!meeting) break;
+      attempts++;
+    }
+
+    if (meeting) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to generate unique meeting code",
+      });
+    }
+
+    const newMeeting = await Meeting.create({
       user_id: req.user._id,
       meetingCode,
     });
 
     res.status(201).json({
       success: true,
-      meetingCode: meeting.meetingCode,
+      meetingCode: newMeeting.meetingCode,
     });
   } catch (err) {
-    res.status(500).json({ message: "Meeting creation failed" });
+    res.status(500).json({
+      success: false,
+      message: "Meeting creation failed",
+    });
   }
 };
 
@@ -30,7 +51,8 @@ export const joinMeeting = async (req, res) => {
       });
     }
 
-    const meeting = await Meeting.findOne({ meetingCode });
+    // Use lean() for read-only queries - faster response
+    const meeting = await Meeting.findOne({ meetingCode }).lean();
 
     if (!meeting) {
       return res.status(404).json({
@@ -54,9 +76,19 @@ export const joinMeeting = async (req, res) => {
 export const getallMeetings = async (req, res) => {
   try {
     const userId = req.user._id;
-    const meetings = await Meeting.find({ user_id: userId }).sort({
-      date: -1,
-    });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Use lean() for read-only queries and pagination
+    const meetings = await Meeting.find({ user_id: userId })
+      .sort({ date: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Get total count separately
+    const total = await Meeting.countDocuments({ user_id: userId });
 
     // Get active meetings from socket connections
     const activeMeetings = getActiveMeetings();
@@ -78,6 +110,12 @@ export const getallMeetings = async (req, res) => {
       success: true,
       message: "Meetings fetched successfully",
       meetings: meetingsWithStatus,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (err) {
     console.log("Error while fetching meetings", err);

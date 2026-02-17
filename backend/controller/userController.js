@@ -40,7 +40,6 @@ export const login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-
     if (!username || !password) {
       return res.status(400).json({
         message: "something is missing",
@@ -59,9 +58,7 @@ export const login = async (req, res) => {
 
     const isPasswordMatch = await user.isPasswordCorrect(password);
 
-
     if (!isPasswordMatch) {
-
       return res.status(400).json({
         message: "Incorrect Username or password",
         success: false,
@@ -70,7 +67,9 @@ export const login = async (req, res) => {
 
     const token = user.generateAccessToken();
 
-    const loggedInUser = await User.findOne({ username }).select("-password");
+    // Reuse already-fetched user instead of querying again
+    const loggedInUser = user.toObject();
+    delete loggedInUser.password;
 
     //const isProduction = process.env.NODE_ENV === "production";
 

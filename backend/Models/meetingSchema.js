@@ -10,6 +10,7 @@ const meetingSchema = new mongoose.Schema({
   meetingCode: {
     type: String,
     required: true,
+    unique: true,
   },
   date: {
     type: Date,
@@ -17,6 +18,11 @@ const meetingSchema = new mongoose.Schema({
     required: true,
   },
 });
+
+// Create indexes for faster queries
+// Note: meetingCode index is auto-created by unique: true above
+meetingSchema.index({ user_id: 1, date: -1 });
+meetingSchema.index({ date: -1 });
 
 const Meeting =
   mongoose.models.Meeting || mongoose.model("Meeting", meetingSchema);

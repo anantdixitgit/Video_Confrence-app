@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { createServer } from "node:http";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import connectDB from "./utils/dbconnect.js";
 import userRouter from "./routes/userRoute.js";
 import meetingRoute from "./routes/meetingRoute.js";
@@ -28,6 +29,10 @@ app.use(
     credentials: true,
   }),
 );
+
+// Enable gzip compression for all responses
+app.use(compression());
+
 app.use(express.json({ limit: "50kb" }));
 app.use(bodyParser.json());
 app.use(cookieParser());
