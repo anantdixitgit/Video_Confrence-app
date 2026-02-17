@@ -22,7 +22,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://video-confrence-app-ruddy.vercel.app/",
+      "http://localhost:5174",
+      "https://video-confrence-app-ruddy.vercel.app",
     ],
     credentials: true,
   }),
