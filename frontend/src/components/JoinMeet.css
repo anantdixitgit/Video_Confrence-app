@@ -117,3 +117,23 @@
   color: #64748b;
   font-size: 13px;
 }
+
+/* My Meetings button */
+.my-meetings-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: 2px solid #a855f7;
+  background: transparent;
+  color: #a855f7;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+.my-meetings-btn:hover {
+  background: #a855f7;
+  color: #ffffff;
+}

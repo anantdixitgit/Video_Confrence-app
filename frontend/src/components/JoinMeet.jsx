@@ -3,16 +3,22 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import "./JoinMeet.css";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 
 function JoinMeeting() {
   const [meetingCode, setMeetingCode] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const SERVER_URL = "https://video-confrence-app.onrender.com";
 
   // Create meeting
   const handleCreateMeeting = async () => {
+    if (loading) return;
+
     try {
+      setLoading(true);
       const res = await axios.post(
         `${SERVER_URL}/api/v1/meeting/create`,
         {},
@@ -25,6 +31,8 @@ function JoinMeeting() {
     } catch (error) {
       console.error("Create meeting error:", error);
       toast.error("Failed to create meeting");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -35,7 +43,10 @@ function JoinMeeting() {
       return;
     }
 
+    if (loading) return;
+
     try {
+      setLoading(true);
       const res = await axios.post(
         `${SERVER_URL}/api/v1/meeting/join`,
         { meetingCode },
@@ -47,6 +58,8 @@ function JoinMeeting() {
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to join meeting");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,8 +68,18 @@ function JoinMeeting() {
       <div className="join-meeting-card">
         <h2>Start or Join a Meeting</h2>
         <div className="join-section">
-          <button className="primary-btn" onClick={handleCreateMeeting}>
-            Create New Meeting
+          <button
+            className="primary-btn"
+            onClick={handleCreateMeeting}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <FontAwesomeIcon icon={faSpinner} spin /> Creating...
+              </>
+            ) : (
+              "Create New Meeting"
+            )}
           </button>
         </div>
         <div className="divider">OR</div>
@@ -69,8 +92,18 @@ function JoinMeeting() {
             className="meeting-input"
           />
 
-          <button className="secondary-btn" onClick={handleJoinMeeting}>
-            Join Meeting
+          <button
+            className="secondary-btn"
+            onClick={handleJoinMeeting}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <FontAwesomeIcon icon={faSpinner} spin /> Joining...
+              </>
+            ) : (
+              "Join Meeting"
+            )}
           </button>
         </div>
         <div className="divider">OR</div>
