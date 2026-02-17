@@ -54,15 +54,12 @@ function JoinMeeting() {
     <div className="join-meeting-page">
       <div className="join-meeting-card">
         <h2>Start or Join a Meeting</h2>
-
         <div className="join-section">
           <button className="primary-btn" onClick={handleCreateMeeting}>
             Create New Meeting
           </button>
         </div>
-
         <div className="divider">OR</div>
-
         <div className="join-section">
           <input
             type="text"
@@ -74,6 +71,15 @@ function JoinMeeting() {
 
           <button className="secondary-btn" onClick={handleJoinMeeting}>
             Join Meeting
+          </button>
+        </div>
+        <div className="divider">OR</div>
+        <div className="join-section">
+          <button
+            className="my-meetings-btn"
+            onClick={() => navigate("/my-meetings")}
+          >
+            My Meetings
           </button>
         </div>
       </div>

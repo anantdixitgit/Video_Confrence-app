@@ -66,6 +66,10 @@ function Landing() {
                 <button className="nav-btn">Join Meeting</button>
               </Link>
 
+              <Link to="/my-meetings">
+                <button className="nav-btn">My Meetings</button>
+              </Link>
+
               <button className="nav-btn outline" onClick={handleLogout}>
                 Logout
               </button>

@@ -90,6 +90,26 @@
   background: #475569;
 }
 
+/* My Meetings button */
+.my-meetings-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: 2px solid #7c3aed;
+  background: transparent;
+  color: #a78bfa;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.my-meetings-btn:hover {
+  background: rgba(124, 58, 237, 0.1);
+  color: #c4b5fd;
+  border-color: #a78bfa;
+}
+
 /* Divider */
 .divider {
   text-align: center;

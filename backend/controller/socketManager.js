@@ -232,3 +232,8 @@ export const connectToSocket = (server) => {
 
   return io;
 };
+
+// ========== EXPORT FUNCTION TO CHECK ACTIVE MEETINGS ==========
+export const getActiveMeetings = () => {
+  return connections;
+};
