@@ -19,7 +19,6 @@ import {
 /* ---------- ICE CONFIG ---------- */
 /* ⚠️ For production, generate TURN credentials dynamically */
 /* ---------- ICE CONFIG ---------- */
-console.log("hello");
 const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -68,7 +67,6 @@ function VideoMeet() {
   const startMedia = async () => {
     // Don't start media if already running
     if (localStreamRef.current && localStreamRef.current.active) {
-      console.log("Media already started");
       return;
     }
 
@@ -166,8 +164,6 @@ function VideoMeet() {
   useEffect(() => {
     const handleUserJoined = async (userIds, remoteSocketId, userData) => {
       if (remoteSocketId === socket.id) return;
-
-      console.log("User joined event:", { userIds, remoteSocketId, userData });
 
       // Store the name for this user
       if (userData?.userName) {
@@ -327,7 +323,6 @@ function VideoMeet() {
       list.forEach((p) => {
         participantNamesRef.current.set(p.socketId, p.name || "Unknown User");
       });
-      console.log("Participants updated:", list);
     };
 
     socket.on("user-joined", handleUserJoined);
@@ -340,7 +335,6 @@ function VideoMeet() {
     const init = async () => {
       // ========== UPDATED: PREVENT DUPLICATE INITIALIZATION ==========
       if (initializeRef.current) {
-        console.log("Already initialized, skipping...");
         return;
       }
 
@@ -349,7 +343,6 @@ function VideoMeet() {
 
       // ========== UPDATED: WAIT FOR AUTH TO LOAD ==========
       if (authLoading) {
-        console.log("Waiting for auth to load...");
         return;
       }
 
@@ -373,7 +366,6 @@ function VideoMeet() {
         userName: user.fullname || user.username || "Anonymous", // User's full name or username
       };
 
-      console.log("Emitting join-call with data:", joinData);
       socket.emit("join-call", joinData);
       setParticipants([]);
     };

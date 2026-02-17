@@ -10,8 +10,6 @@ export const register = async (req, res) => {
       });
     }
 
-    //const file = req.file;
-
     const user = await User.findOne({ username });
     if (user) {
       return res.status(400).json({
@@ -67,11 +65,8 @@ export const login = async (req, res) => {
 
     const token = user.generateAccessToken();
 
-    // Reuse already-fetched user instead of querying again
     const loggedInUser = user.toObject();
     delete loggedInUser.password;
-
-    //const isProduction = process.env.NODE_ENV === "production";
 
     res.cookie("token", token, {
       httpOnly: true,
@@ -97,20 +92,21 @@ export const login = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
-    // Clear cookie for all possible domains and paths
     res.clearCookie("token", {
       httpOnly: true,
       secure: true,
       sameSite: "none",
       path: "/",
     });
-    // No domain option if COOKIE_DOMAIN is not set
     return res.status(200).json({
       message: "Logged out successfully.",
       success: true,
     });
   } catch (error) {
-    console.log(error);
+    return res.status(500).json({
+      message: "Logout failed",
+      success: false,
+    });
   }
 };
 

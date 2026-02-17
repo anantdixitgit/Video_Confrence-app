@@ -30,7 +30,6 @@ app.use(
   }),
 );
 
-// Enable gzip compression for all responses
 app.use(compression());
 
 app.use(express.json({ limit: "50kb" }));
@@ -44,9 +43,7 @@ app.use("/api/v1/meeting", meetingRoute);
 const startServer = async () => {
   try {
     await connectDB();
-    server.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
+    server.listen(PORT);
   } catch (error) {
     console.error("Error starting server:", error);
   }

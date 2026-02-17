@@ -23,8 +23,6 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// Note: username index is auto-created by unique: true above
-
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
   try {

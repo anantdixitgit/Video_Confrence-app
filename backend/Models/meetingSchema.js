@@ -19,8 +19,6 @@ const meetingSchema = new mongoose.Schema({
   },
 });
 
-// Create indexes for faster queries
-// Note: meetingCode index is auto-created by unique: true above
 meetingSchema.index({ user_id: 1, date: -1 });
 meetingSchema.index({ date: -1 });
 
