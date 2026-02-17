@@ -164,7 +164,10 @@ function VideoMeet() {
   useEffect(() => {
     const handleUserJoined = async (userIds, remoteSocketId, userData) => {
       if (remoteSocketId === socket.id) return;
-      toast.info("👋 A user joined");
+
+      // Show joined notification with user's name
+      const userName = userData?.userName || "A user";
+      toast.info(`👋 ${userName} joined the meeting`);
 
       // Create peers with all existing users
       for (const userId of userIds) {
@@ -284,7 +287,13 @@ function VideoMeet() {
     };
 
     const handleUserLeft = (socketId) => {
-      toast.warning("👋 User left");
+      // Find the participant's name from the list
+      const leftParticipant = participantsList.find(
+        (p) => p.socketId === socketId,
+      );
+      const participantName = leftParticipant?.name || "Unknown User";
+
+      toast.warning(`👋 ${participantName} left the meeting`);
       if (peersRef.current.has(socketId)) {
         peersRef.current.get(socketId).close();
         peersRef.current.delete(socketId);
