@@ -18,9 +18,21 @@ const io = connectToSocket(server);
 
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://video-confrence-app-ruddy.vercel.app",
+];
+
 app.use(
   cors({
-    origin: 'http://localhost:5173', // frontend dev server URL
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   }),
 );

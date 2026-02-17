@@ -1,10 +1,6 @@
 import { io } from "socket.io-client";
 
-// For local development
-const SERVER_URL = "http://localhost:5000";
-
-// For production (Render Backend URL)
-// const SERVER_URL = "https://video-confrence-app.onrender.com";
+const SERVER_URL = "https://video-confrence-app-ruddy.vercel.app";
 
 export const socket = io(SERVER_URL, {
   transports: ["websocket"],
@@ -16,13 +12,9 @@ export const socket = io(SERVER_URL, {
   autoConnect: false, // Prevent auto connection
 });
 
-socket.on("connect", () => {
+socket.on("connect", () => {});
 
-});
-
-socket.on("disconnect", () => {
-
-});
+socket.on("disconnect", () => {});
 
 socket.on("connect_error", (error) => {
   console.error("Socket connection error:", error);

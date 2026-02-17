@@ -29,7 +29,7 @@ function Login() {
       setLoading(true); // ✅ start loader
 
       const res = await axios.post(
-        "http://localhost:5000/api/v1/user/login",
+        "https://video-confrence-app-ruddy.vercel.app/api/v1/user/login",
         { username, password },
         {
           withCredentials: true,
@@ -43,7 +43,9 @@ function Login() {
         navigate("/meeting");
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || "Invalid username or password");
+      toast.error(
+        err.response?.data?.message || "Invalid username or password",
+      );
     } finally {
       setLoading(false); // ✅ stop loader
     }

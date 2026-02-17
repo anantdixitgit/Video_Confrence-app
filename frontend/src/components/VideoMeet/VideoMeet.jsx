@@ -64,6 +64,12 @@ function VideoMeet() {
 
   /* ---------- START MEDIA ---------- */
   const startMedia = async () => {
+    // Don't start media if already running
+    if (localStreamRef.current && localStreamRef.current.active) {
+      console.log("Media already started");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -208,6 +214,18 @@ function VideoMeet() {
 
       if (data.type === "offer") {
         try {
+          // Check if we can accept this offer
+          if (
+            peer.signalingState !== "stable" &&
+            peer.signalingState !== "have-local-offer"
+          ) {
+            console.warn(
+              "Peer not in correct state for offer:",
+              peer.signalingState,
+            );
+            return;
+          }
+
           await peer.setRemoteDescription(data);
 
           const pending = pendingIceRef.current.get(fromSocketId) || [];
@@ -233,6 +251,12 @@ function VideoMeet() {
         }
       } else if (data.type === "answer") {
         try {
+          // Check if we're expecting an answer
+          if (peer.signalingState !== "have-local-offer") {
+            console.warn("Peer not expecting answer:", peer.signalingState);
+            return;
+          }
+
           await peer.setRemoteDescription(data);
           const pending = pendingIceRef.current.get(fromSocketId) || [];
           for (const cand of pending) {
@@ -292,6 +316,9 @@ function VideoMeet() {
         return;
       }
 
+      // ========== NEW: MARK AS INITIALIZED EARLY ==========
+      initializeRef.current = true;
+
       // ========== UPDATED: WAIT FOR AUTH TO LOAD ==========
       if (authLoading) {
         console.log("Waiting for auth to load...");
@@ -321,9 +348,6 @@ function VideoMeet() {
       console.log("Emitting join-call with data:", joinData);
       socket.emit("join-call", joinData);
       setParticipants([]);
-
-      // ========== NEW: MARK AS INITIALIZED ==========
-      initializeRef.current = true;
     };
 
     // ========== UPDATED: ONLY RUN INIT WHEN AUTH IS READY ==========
@@ -338,10 +362,14 @@ function VideoMeet() {
       // ========== NEW: CLEANUP PARTICIPANT LIST LISTENER ==========
       socket.off("participant-list", handleParticipantList);
 
+      // Only cleanup on unmount, not on re-render
+      if (!initializeRef.current) return;
+
       peersRef.current.forEach((peer) => peer.close());
       peersRef.current.clear();
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
       }
       if (socket.connected) {
         socket.disconnect();
