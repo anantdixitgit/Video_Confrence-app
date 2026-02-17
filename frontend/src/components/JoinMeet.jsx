@@ -8,7 +8,7 @@ function JoinMeeting() {
   const [meetingCode, setMeetingCode] = useState("");
   const navigate = useNavigate();
 
-  const SERVER_URL = "https://video-confrence-app-ruddy.vercel.app";
+  const SERVER_URL = "https://video-confrence-app.onrender.com";
 
   // Create meeting
   const handleCreateMeeting = async () => {

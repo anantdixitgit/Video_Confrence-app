@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const SERVER_URL = "https://video-confrence-app-ruddy.vercel.app";
+const SERVER_URL = "https://video-confrence-app.onrender.com";
 
 export const socket = io(SERVER_URL, {
   transports: ["websocket"],
