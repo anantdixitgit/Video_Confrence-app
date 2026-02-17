@@ -40,6 +40,8 @@ function VideoMeet() {
   const pendingLocalIceRef = useRef(new Map()); // socketId -> candidates
   // ========== NEW: TRACK IF ALREADY INITIALIZED ==========
   const initializeRef = useRef(false);
+  // ========== NEW: TRACK PARTICIPANT NAMES ==========
+  const participantNamesRef = useRef(new Map()); // socketId -> name
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
@@ -165,8 +167,18 @@ function VideoMeet() {
     const handleUserJoined = async (userIds, remoteSocketId, userData) => {
       if (remoteSocketId === socket.id) return;
 
-      // Show joined notification with user's name
-      const userName = userData?.userName || "A user";
+      console.log("User joined event:", { userIds, remoteSocketId, userData });
+
+      // Store the name for this user
+      if (userData?.userName) {
+        participantNamesRef.current.set(remoteSocketId, userData.userName);
+      }
+
+      // Get the user's name
+      const userName =
+        participantNamesRef.current.get(remoteSocketId) ||
+        userData?.userName ||
+        "A user";
       toast.info(`👋 ${userName} joined the meeting`);
 
       // Create peers with all existing users
@@ -287,13 +299,15 @@ function VideoMeet() {
     };
 
     const handleUserLeft = (socketId) => {
-      // Find the participant's name from the list
-      const leftParticipant = participantsList.find(
-        (p) => p.socketId === socketId,
-      );
-      const participantName = leftParticipant?.name || "Unknown User";
+      // Get the participant's name from our map
+      const participantName =
+        participantNamesRef.current.get(socketId) || "Unknown User";
 
       toast.warning(`👋 ${participantName} left the meeting`);
+
+      // Clean up the name entry
+      participantNamesRef.current.delete(socketId);
+
       if (peersRef.current.has(socketId)) {
         peersRef.current.get(socketId).close();
         peersRef.current.delete(socketId);
@@ -308,6 +322,11 @@ function VideoMeet() {
     const handleParticipantList = (list) => {
       // list = [{socketId, name, isHost, joinedAt}, ...]
       setParticipantsList(list);
+      // Store names in map for quick lookup
+      participantNamesRef.current.clear();
+      list.forEach((p) => {
+        participantNamesRef.current.set(p.socketId, p.name || "Unknown User");
+      });
       console.log("Participants updated:", list);
     };
 
@@ -380,6 +399,7 @@ function VideoMeet() {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
         localStreamRef.current = null;
       }
+      participantNamesRef.current.clear();
       if (socket.connected) {
         socket.disconnect();
       }
