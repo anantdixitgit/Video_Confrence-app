@@ -29,7 +29,7 @@ function Login() {
       setLoading(true); // ✅ start loader
 
       const res = await axios.post(
-        "https://video-confrence-app.onrender.com/api/v1/user/login",
+        "https://video-confrence-app-sgrb.vercel.app/api/v1/user/login",
         { username, password },
         {
           withCredentials: true,

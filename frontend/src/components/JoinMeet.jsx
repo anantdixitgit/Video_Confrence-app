@@ -11,7 +11,7 @@ function JoinMeeting() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const SERVER_URL = "https://video-confrence-app.onrender.com";
+  const SERVER_URL = "https://video-confrence-app-sgrb.vercel.app";
 
   // Create meeting
   const handleCreateMeeting = async () => {

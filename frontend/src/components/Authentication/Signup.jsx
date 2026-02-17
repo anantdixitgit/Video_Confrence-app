@@ -23,7 +23,7 @@ function Signup() {
       setLoading(true);
 
       const res = await axios.post(
-        "https://video-confrence-app.onrender.com/api/v1/user/register",
+        "https://video-confrence-app-sgrb.vercel.app/api/v1/user/register",
         {
           fullname,
           username,

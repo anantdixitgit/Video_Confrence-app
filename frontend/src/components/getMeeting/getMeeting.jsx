@@ -20,7 +20,7 @@ function GetMeeting() {
     try {
       setLoading(true);
       const res = await axios.get(
-        "https://video-confrence-app.onrender.com/api/v1/meeting/allmeetings",
+        "https://video-confrence-app-sgrb.vercel.app/api/v1/meeting/allmeetings",
         { withCredentials: true },
       );
 

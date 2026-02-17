@@ -12,7 +12,7 @@ function Landing() {
   useEffect(() => {
     axios
       .get(
-        "https://video-confrence-app.onrender.com/api/v1/user/authenticate",
+        "https://video-confrence-app-sgrb.vercel.app/api/v1/user/authenticate",
         {
           withCredentials: true,
         },
@@ -24,7 +24,7 @@ function Landing() {
   const handleGetStarted = async () => {
     try {
       await axios.get(
-        "https://video-confrence-app.onrender.com/api/v1/user/authenticate",
+        "https://video-confrence-app-sgrb.vercel.app/api/v1/user/authenticate",
         {
           withCredentials: true,
         },
@@ -39,7 +39,7 @@ function Landing() {
   const handleLogout = async () => {
     try {
       await axios.post(
-        "https://video-confrence-app.onrender.com/api/v1/user/logout",
+        "https://video-confrence-app-sgrb.vercel.app/api/v1/user/logout",
         {},
         { withCredentials: true },
       );
