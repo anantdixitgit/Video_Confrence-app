@@ -14,6 +14,12 @@ export const connectToSocket = (server) => {
       allowedHeaders: ["*"],
       credentials: true,
     },
+    // Performance optimizations
+    serveClient: false, // Don't serve socket.io client bundle
+    pingInterval: 25000,
+    pingTimeout: 20000,
+    transports: ["websocket", "polling"],
+    maxHttpBufferSize: 1e6, // 1MB max message size
   });
 
   io.on("connection", (socket) => {

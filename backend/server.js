@@ -31,8 +31,8 @@ app.use(
   }),
 );
 
-// Enable gzip compression for all responses
-app.use(compression());
+// Enable gzip compression for all responses (level 6 for balance of speed vs compression)
+app.use(compression({ level: 6, threshold: 1024 }));
 
 app.use(express.json({ limit: "50kb" }));
 app.use(bodyParser.json());
