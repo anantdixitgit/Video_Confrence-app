@@ -3,7 +3,7 @@ import { io } from "socket.io-client";
 const SERVER_URL = "https://video-confrence-app.onrender.com";
 
 export const socket = io(SERVER_URL, {
-  transports: ["websocket"],
+  transports: ["websocket", "polling"],
   withCredentials: true,
   reconnection: true,
   reconnectionDelay: 1000,

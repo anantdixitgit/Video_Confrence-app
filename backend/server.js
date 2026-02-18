@@ -25,6 +25,7 @@ app.use(
       "http://localhost:5173",
       "http://localhost:5174",
       "https://video-confrence-app-ruddy.vercel.app",
+      "https://video-confrence-app-sgrb.vercel.app",
     ],
     credentials: true,
   }),

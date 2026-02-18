@@ -408,6 +408,7 @@ function VideoMeet() {
 
   /* ---------- CONTROLS ---------- */
   const toggleMic = async () => {
+    if (!localStreamRef.current) return;
     const track = localStreamRef.current.getAudioTracks()[0];
     if (!track) return;
 
