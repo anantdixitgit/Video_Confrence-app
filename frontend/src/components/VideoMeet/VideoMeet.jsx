@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { socket } from "../../utils/socket";
+import { socket, setMeetingCode, clearMeetingCode } from "../../utils/socket";
 import "./VideoMeet.css";
 import { toast } from "react-toastify";
 import { useAuth } from "../../context/AuthContext";
@@ -40,6 +40,7 @@ function VideoMeet() {
   const [participants, setParticipants] = useState([]);
   const [participantsList, setParticipantsList] = useState([]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState("connected"); // 'connected', 'reconnecting', 'disconnected'
 
   /* ---------- BLACK VIDEO TRACK ---------- */
   const createBlackVideoTrack = () => {
@@ -84,75 +85,78 @@ function VideoMeet() {
     }
   };
 
-  /* ---------- ADD LOCAL TRACKS ---------- */
-  const addLocalTracks = (peer) => {
-    if (!localStreamRef.current) return;
+  /* ---------- SOCKET + INIT ---------- */
+  useEffect(() => {
+    const peersRefCurrent = peersRef.current;
+    const namesRefCurrent = participantNamesRef.current;
 
-    localStreamRef.current.getTracks().forEach((track) => {
-      // Check if track already added
-      const senders = peer.getSenders();
-      const alreadyAdded = senders.some((player) => player.track === track);
+    /* ---------- ADD LOCAL TRACKS ---------- */
+    const addLocalTracks = (peer) => {
+      if (!localStreamRef.current) return;
 
-      if (!alreadyAdded) {
-        const sender = peer.addTrack(track, localStreamRef.current);
-        if (track.kind === "audio") peer._senders.audio = sender;
-        if (track.kind === "video") peer._senders.video = sender;
-      }
-    });
-  };
+      localStreamRef.current.getTracks().forEach((track) => {
+        // Check if track already added
+        const senders = peer.getSenders();
+        const alreadyAdded = senders.some((player) => player.track === track);
 
-  /* ---------- CREATE PEER ---------- */
-  const createPeer = (targetSocketId) => {
-    if (peersRef.current.has(targetSocketId)) {
-      const existingPeer = peersRef.current.get(targetSocketId);
-      if (existingPeer.connectionState !== "closed") {
-        return existingPeer;
-      }
-    }
-
-    const peer = new RTCPeerConnection(ICE_SERVERS);
-    peer._senders = { audio: null, video: null };
-
-    addLocalTracks(peer);
-
-    if (!pendingIceRef.current.has(targetSocketId)) {
-      pendingIceRef.current.set(targetSocketId, []);
-    }
-    if (!pendingLocalIceRef.current.has(targetSocketId)) {
-      pendingLocalIceRef.current.set(targetSocketId, []);
-    }
-
-    peer.ontrack = (e) => {
-      remoteStreamsRef.current.set(targetSocketId, e.streams[0]);
-      setParticipants((prev) => {
-        if (!prev.includes(targetSocketId)) {
-          return [...prev, targetSocketId];
+        if (!alreadyAdded) {
+          const sender = peer.addTrack(track, localStreamRef.current);
+          if (track.kind === "audio") peer._senders.audio = sender;
+          if (track.kind === "video") peer._senders.video = sender;
         }
-        return prev;
       });
     };
 
-    peer.onicecandidate = (e) => {
-      if (!e.candidate) return;
-      if (targetSocketId) {
-        socket.emit("signal", targetSocketId, e.candidate);
+    /* ---------- CREATE PEER ---------- */
+    const createPeer = (targetSocketId) => {
+      if (peersRef.current.has(targetSocketId)) {
+        const existingPeer = peersRef.current.get(targetSocketId);
+        if (existingPeer.connectionState !== "closed") {
+          return existingPeer;
+        }
       }
+
+      const peer = new RTCPeerConnection(ICE_SERVERS);
+      peer._senders = { audio: null, video: null };
+
+      addLocalTracks(peer);
+
+      if (!pendingIceRef.current.has(targetSocketId)) {
+        pendingIceRef.current.set(targetSocketId, []);
+      }
+      if (!pendingLocalIceRef.current.has(targetSocketId)) {
+        pendingLocalIceRef.current.set(targetSocketId, []);
+      }
+
+      peer.ontrack = (e) => {
+        remoteStreamsRef.current.set(targetSocketId, e.streams[0]);
+        setParticipants((prev) => {
+          if (!prev.includes(targetSocketId)) {
+            return [...prev, targetSocketId];
+          }
+          return prev;
+        });
+      };
+
+      peer.onicecandidate = (e) => {
+        if (!e.candidate) return;
+        if (targetSocketId) {
+          socket.emit("signal", targetSocketId, e.candidate);
+        }
+      };
+
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === "connected") {
+          toast.success("✅ Connected");
+        } else if (peer.connectionState === "failed") {
+          toast.error("❌ Connection failed");
+        }
+      };
+
+      peersRef.current.set(targetSocketId, peer);
+      return peer;
     };
 
-    peer.onconnectionstatechange = () => {
-      if (peer.connectionState === "connected") {
-        toast.success("✅ Connected");
-      } else if (peer.connectionState === "failed") {
-        toast.error("❌ Connection failed");
-      }
-    };
-
-    peersRef.current.set(targetSocketId, peer);
-    return peer;
-  };
-
-  /* ---------- SOCKET + INIT ---------- */
-  useEffect(() => {
     const handleUserJoined = async (userIds, remoteSocketId, userData) => {
       if (remoteSocketId === socket.id) return;
 
@@ -230,7 +234,10 @@ function VideoMeet() {
           for (const cand of pending) {
             try {
               await peer.addIceCandidate(cand);
-            } catch (e) {}
+            } catch (error) {
+              // Ignore ICE candidate errors during negotiation
+              void error;
+            }
           }
           pendingIceRef.current.set(fromSocketId, []);
 
@@ -259,7 +266,10 @@ function VideoMeet() {
           for (const cand of pending) {
             try {
               await peer.addIceCandidate(cand);
-            } catch (e) {}
+            } catch (error) {
+              // Ignore ICE candidate errors during negotiation
+              void error;
+            }
           }
           pendingIceRef.current.set(fromSocketId, []);
         } catch (err) {
@@ -310,10 +320,75 @@ function VideoMeet() {
       });
     };
 
+    const handleDisconnect = () => {
+      setConnectionStatus("reconnecting");
+      toast.warning("⚠️ Connection lost. Attempting to reconnect...", {
+        autoClose: false,
+        toastId: "reconnecting",
+      });
+    };
+
+    const handleReconnect = () => {
+      setConnectionStatus("connected");
+      toast.dismiss("reconnecting");
+      toast.success("✅ Reconnected successfully!");
+    };
+
+    const handleUserConnectionLost = (data) => {
+      const { name } = data;
+      toast.info(`⚠️ ${name} has connection issues...`, {
+        autoClose: 5000,
+      });
+    };
+
+    const handleUserReconnected = (data) => {
+      const { oldSocketId, newSocketId } = data;
+
+      // Update peer references
+      if (peersRef.current.has(oldSocketId)) {
+        const peer = peersRef.current.get(oldSocketId);
+        peersRef.current.delete(oldSocketId);
+        peersRef.current.set(newSocketId, peer);
+      }
+
+      if (remoteStreamsRef.current.has(oldSocketId)) {
+        const stream = remoteStreamsRef.current.get(oldSocketId);
+        remoteStreamsRef.current.delete(oldSocketId);
+        remoteStreamsRef.current.set(newSocketId, stream);
+      }
+
+      // Update participants list
+      setParticipants((prev) =>
+        prev.map((id) => (id === oldSocketId ? newSocketId : id)),
+      );
+
+      const participantName =
+        participantNamesRef.current.get(oldSocketId) || "Participant";
+      toast.success(`✅ ${participantName} reconnected!`);
+
+      // Update name map
+      if (participantNamesRef.current.has(oldSocketId)) {
+        const name = participantNamesRef.current.get(oldSocketId);
+        participantNamesRef.current.delete(oldSocketId);
+        participantNamesRef.current.set(newSocketId, name);
+      }
+    };
+
+    const handleReconnectionSuccessful = () => {
+      setConnectionStatus("connected");
+      toast.dismiss("reconnecting");
+      toast.success("✅ Session restored!");
+    };
+
     socket.on("user-joined", handleUserJoined);
     socket.on("signal", handleSignal);
     socket.on("user-left", handleUserLeft);
     socket.on("participant-list", handleParticipantList);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect", handleReconnect);
+    socket.on("user-connection-lost", handleUserConnectionLost);
+    socket.on("user-reconnected", handleUserReconnected);
+    socket.on("reconnection-successful", handleReconnectionSuccessful);
 
     /* INIT */
     const init = async () => {
@@ -348,6 +423,9 @@ function VideoMeet() {
         userName: user.fullname || user.username || "Anonymous",
       };
 
+      // Set meeting code for reconnection tracking
+      setMeetingCode(meetingCode);
+
       socket.emit("join-call", joinData);
       setParticipants([]);
     };
@@ -362,17 +440,23 @@ function VideoMeet() {
       socket.off("signal", handleSignal);
       socket.off("user-left", handleUserLeft);
       socket.off("participant-list", handleParticipantList);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect", handleReconnect);
+      socket.off("user-connection-lost", handleUserConnectionLost);
+      socket.off("user-reconnected", handleUserReconnected);
+      socket.off("reconnection-successful", handleReconnectionSuccessful);
 
       // Only cleanup on unmount, not on re-render
       if (!initializeRef.current) return;
 
-      peersRef.current.forEach((peer) => peer.close());
-      peersRef.current.clear();
+      peersRefCurrent.forEach((peer) => peer.close());
+      peersRefCurrent.clear();
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
         localStreamRef.current = null;
       }
-      participantNamesRef.current.clear();
+      namesRefCurrent.clear();
+      clearMeetingCode();
       if (socket.connected) {
         socket.disconnect();
       }
@@ -420,6 +504,7 @@ function VideoMeet() {
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     peersRef.current.forEach((peer) => peer.close());
     socket.emit("leave-call", meetingCode);
+    clearMeetingCode();
     socket.disconnect();
     navigate("/");
   };
@@ -428,13 +513,20 @@ function VideoMeet() {
     <div className="video-page">
       <div className="meeting-header">
         <h2>Meeting: {meetingCode}</h2>
-        <span
-          className="participant-count clickable"
-          onClick={() => setIsPanelOpen(!isPanelOpen)}
-          title="Click to view participants"
-        >
-          👥 {participantsList.length}
-        </span>
+        <div className="header-right">
+          {connectionStatus === "reconnecting" && (
+            <span className="connection-status reconnecting">
+              ⚠️ Reconnecting...
+            </span>
+          )}
+          <span
+            className="participant-count clickable"
+            onClick={() => setIsPanelOpen(!isPanelOpen)}
+            title="Click to view participants"
+          >
+            👥 {participantsList.length}
+          </span>
+        </div>
       </div>
 
       <div className="videos-grid">

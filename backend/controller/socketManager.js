@@ -5,6 +5,7 @@ let connections = {};
 let messages = {};
 let timeOnline = {};
 let participantInfo = {}; // Structure: { meetingCode: [{socketId, name, isHost, joinedAt}] }
+let disconnectedUsers = new Map(); // Structure: Map<socketId, {meetingCode, timeoutId, userData}>
 
 export const connectToSocket = (server) => {
   const io = new Server(server, {
@@ -82,6 +83,62 @@ export const connectToSocket = (server) => {
           io.to(peerId).emit("participant-list", participantInfo[path]);
         }
       });
+    });
+
+    socket.on("reconnection-attempt", (data) => {
+      const oldSocketId = data.oldSocketId;
+      const meetingCode = data.meetingCode;
+
+      // Check if user is in disconnected state
+      if (disconnectedUsers.has(oldSocketId)) {
+        const disconnectInfo = disconnectedUsers.get(oldSocketId);
+
+        // Clear the timeout
+        clearTimeout(disconnectInfo.timeoutId);
+        disconnectedUsers.delete(oldSocketId);
+
+        // Update socket ID in connections
+        if (connections[meetingCode]) {
+          const index = connections[meetingCode].indexOf(oldSocketId);
+          if (index > -1) {
+            connections[meetingCode][index] = socket.id;
+          }
+        }
+
+        // Update participant info
+        if (participantInfo[meetingCode]) {
+          const participant = participantInfo[meetingCode].find(
+            (p) => p.socketId === oldSocketId,
+          );
+          if (participant) {
+            participant.socketId = socket.id;
+          }
+        }
+
+        // Update timeOnline
+        if (timeOnline[oldSocketId]) {
+          timeOnline[socket.id] = timeOnline[oldSocketId];
+          delete timeOnline[oldSocketId];
+        }
+
+        // Notify user of successful reconnection
+        socket.emit("reconnection-successful", {
+          newSocketId: socket.id,
+          meetingCode: meetingCode,
+        });
+
+        // Notify others that user reconnected
+        if (connections[meetingCode]) {
+          connections[meetingCode].forEach((peerId) => {
+            if (peerId !== socket.id) {
+              io.to(peerId).emit("user-reconnected", {
+                oldSocketId: oldSocketId,
+                newSocketId: socket.id,
+              });
+            }
+          });
+        }
+      }
     });
 
     socket.on("signal", (toId, message) => {
@@ -179,32 +236,70 @@ export const connectToSocket = (server) => {
       }
 
       if (foundRoom) {
-        // Remove user from room
-        const index = connections[foundRoom].indexOf(socketId);
-        if (index > -1) {
-          connections[foundRoom].splice(index, 1);
-        }
-
-        // Remove user from participant info
+        // Get participant info before potential removal
+        let participantData = null;
         if (participantInfo[foundRoom]) {
-          participantInfo[foundRoom] = participantInfo[foundRoom].filter(
-            (p) => p.socketId !== socketId,
+          participantData = participantInfo[foundRoom].find(
+            (p) => p.socketId === socketId,
           );
         }
 
-        // Notify others and send updated participant list
-        connections[foundRoom].forEach((peerId) => {
-          io.to(peerId).emit("user-left", socketId);
-          // Send updated participant list to remaining users
-          if (participantInfo[foundRoom]) {
-            io.to(peerId).emit("participant-list", participantInfo[foundRoom]);
+        // Set 30-second grace period for reconnection
+        const timeoutId = setTimeout(() => {
+          // Remove user after grace period expires
+          if (connections[foundRoom]) {
+            const index = connections[foundRoom].indexOf(socketId);
+            if (index > -1) {
+              connections[foundRoom].splice(index, 1);
+            }
+
+            // Remove user from participant info
+            if (participantInfo[foundRoom]) {
+              participantInfo[foundRoom] = participantInfo[foundRoom].filter(
+                (p) => p.socketId !== socketId,
+              );
+            }
+
+            // Notify others and send updated participant list
+            connections[foundRoom].forEach((peerId) => {
+              io.to(peerId).emit("user-left", socketId);
+              // Send updated participant list to remaining users
+              if (participantInfo[foundRoom]) {
+                io.to(peerId).emit(
+                  "participant-list",
+                  participantInfo[foundRoom],
+                );
+              }
+            });
+
+            // Cleanup empty room
+            if (connections[foundRoom].length === 0) {
+              delete connections[foundRoom];
+              delete participantInfo[foundRoom];
+            }
           }
+
+          // Remove from disconnected users tracking
+          disconnectedUsers.delete(socketId);
+        }, 30000); // 30 seconds grace period
+
+        // Store disconnected user info
+        disconnectedUsers.set(socketId, {
+          meetingCode: foundRoom,
+          timeoutId: timeoutId,
+          userData: participantData,
         });
 
-        // Cleanup empty room
-        if (connections[foundRoom].length === 0) {
-          delete connections[foundRoom];
-          delete participantInfo[foundRoom];
+        // Notify others that user is temporarily disconnected
+        if (connections[foundRoom]) {
+          connections[foundRoom].forEach((peerId) => {
+            if (peerId !== socketId) {
+              io.to(peerId).emit("user-connection-lost", {
+                socketId: socketId,
+                name: participantData?.name || "Unknown User",
+              });
+            }
+          });
         }
       }
     });
