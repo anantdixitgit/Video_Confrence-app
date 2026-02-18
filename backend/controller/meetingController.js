@@ -118,7 +118,6 @@ export const getallMeetings = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log("Error while fetching meetings", err);
     res.status(500).json({
       success: false,
       message: "Failed to fetch meetings",

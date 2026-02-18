@@ -3,7 +3,6 @@ import User from "../Models/userSchema.js";
 
 export const verifyJWT = async (req, res, next) => {
   try {
-
     const token = req.cookies?.token;
 
     if (!token) {
@@ -35,7 +34,7 @@ export const verifyJWT = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    console.log(error);
+    console.error("Auth verification error:", error);
   }
 };
 

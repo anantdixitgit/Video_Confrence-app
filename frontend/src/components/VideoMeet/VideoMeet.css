@@ -34,7 +34,6 @@
   border: 1px solid rgba(37, 99, 235, 0.3);
 }
 
-/* ========== NEW: CLICKABLE PARTICIPANT BADGE (Phase 3) ========== */
 .participant-count.clickable {
   cursor: pointer;
   transition: all 0.2s ease;

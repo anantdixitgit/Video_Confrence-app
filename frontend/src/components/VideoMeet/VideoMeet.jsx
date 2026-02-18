@@ -4,7 +4,6 @@ import { socket } from "../../utils/socket";
 import "./VideoMeet.css";
 import { toast } from "react-toastify";
 import { useAuth } from "../../context/AuthContext";
-// ========== NEW: IMPORT PARTICIPANT WINDOW (Phase 3) ==========
 import ParticipantWindow from "../ParticipantWindow/ParticipantWindow";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -16,10 +15,6 @@ import {
   faPhoneSlash,
 } from "@fortawesome/free-solid-svg-icons";
 
-/* ---------- ICE CONFIG ---------- */
-/* ⚠️ For production, generate TURN credentials dynamically */
-/* ---------- ICE CONFIG ---------- */
-console.log("hello");
 const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -27,7 +22,6 @@ const ICE_SERVERS = {
 function VideoMeet() {
   const { meetingCode } = useParams();
   const navigate = useNavigate();
-  // ========== UPDATED: GET USER AND LOADING STATE ==========
   const { user, loading: authLoading } = useAuth();
 
   const localVideoRef = useRef(null);
@@ -38,17 +32,13 @@ function VideoMeet() {
 
   const pendingIceRef = useRef(new Map()); // socketId -> candidates
   const pendingLocalIceRef = useRef(new Map()); // socketId -> candidates
-  // ========== NEW: TRACK IF ALREADY INITIALIZED ==========
   const initializeRef = useRef(false);
-  // ========== NEW: TRACK PARTICIPANT NAMES ==========
   const participantNamesRef = useRef(new Map()); // socketId -> name
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [participants, setParticipants] = useState([]);
-  // ========== NEW: DETAILED PARTICIPANT LIST (Phase 2) ==========
   const [participantsList, setParticipantsList] = useState([]);
-  // ========== NEW: PARTICIPANT PANEL STATE (Phase 3) ==========
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   /* ---------- BLACK VIDEO TRACK ---------- */
@@ -68,7 +58,6 @@ function VideoMeet() {
   const startMedia = async () => {
     // Don't start media if already running
     if (localStreamRef.current && localStreamRef.current.active) {
-      console.log("Media already started");
       return;
     }
 
@@ -167,8 +156,6 @@ function VideoMeet() {
     const handleUserJoined = async (userIds, remoteSocketId, userData) => {
       if (remoteSocketId === socket.id) return;
 
-      console.log("User joined event:", { userIds, remoteSocketId, userData });
-
       // Store the name for this user
       if (userData?.userName) {
         participantNamesRef.current.set(remoteSocketId, userData.userName);
@@ -234,10 +221,6 @@ function VideoMeet() {
             peer.signalingState !== "stable" &&
             peer.signalingState !== "have-local-offer"
           ) {
-            console.warn(
-              "Peer not in correct state for offer:",
-              peer.signalingState,
-            );
             return;
           }
 
@@ -268,7 +251,6 @@ function VideoMeet() {
         try {
           // Check if we're expecting an answer
           if (peer.signalingState !== "have-local-offer") {
-            console.warn("Peer not expecting answer:", peer.signalingState);
             return;
           }
 
@@ -318,7 +300,6 @@ function VideoMeet() {
       setParticipants((prev) => prev.filter((id) => id !== socketId));
     };
 
-    // ========== NEW: HANDLE PARTICIPANT LIST UPDATES (Phase 2) ==========
     const handleParticipantList = (list) => {
       // list = [{socketId, name, isHost, joinedAt}, ...]
       setParticipantsList(list);
@@ -327,29 +308,24 @@ function VideoMeet() {
       list.forEach((p) => {
         participantNamesRef.current.set(p.socketId, p.name || "Unknown User");
       });
-      console.log("Participants updated:", list);
     };
 
     socket.on("user-joined", handleUserJoined);
     socket.on("signal", handleSignal);
     socket.on("user-left", handleUserLeft);
-    // ========== NEW: LISTEN FOR PARTICIPANT LIST CHANGES ==========
     socket.on("participant-list", handleParticipantList);
 
     /* INIT */
     const init = async () => {
-      // ========== UPDATED: PREVENT DUPLICATE INITIALIZATION ==========
+      // Prevent duplicate initialization
       if (initializeRef.current) {
-        console.log("Already initialized, skipping...");
         return;
       }
 
-      // ========== NEW: MARK AS INITIALIZED EARLY ==========
       initializeRef.current = true;
 
-      // ========== UPDATED: WAIT FOR AUTH TO LOAD ==========
+      // Wait for auth to load
       if (authLoading) {
-        console.log("Waiting for auth to load...");
         return;
       }
 
@@ -366,19 +342,17 @@ function VideoMeet() {
 
       await startMedia();
 
-      // ========== UPDATED: SEND USER DATA WITH CORRECT STRUCTURE ==========
       const joinData = {
         meetingCode: meetingCode,
-        userId: user._id, // MongoDB ObjectId of the user
-        userName: user.fullname || user.username || "Anonymous", // User's full name or username
+        userId: user._id,
+        userName: user.fullname || user.username || "Anonymous",
       };
 
-      console.log("Emitting join-call with data:", joinData);
       socket.emit("join-call", joinData);
       setParticipants([]);
     };
 
-    // ========== UPDATED: ONLY RUN INIT WHEN AUTH IS READY ==========
+    // Initialize meeting when auth is ready
     if (!authLoading && !initializeRef.current) {
       init();
     }
@@ -387,7 +361,6 @@ function VideoMeet() {
       socket.off("user-joined", handleUserJoined);
       socket.off("signal", handleSignal);
       socket.off("user-left", handleUserLeft);
-      // ========== NEW: CLEANUP PARTICIPANT LIST LISTENER ==========
       socket.off("participant-list", handleParticipantList);
 
       // Only cleanup on unmount, not on re-render
@@ -455,7 +428,6 @@ function VideoMeet() {
     <div className="video-page">
       <div className="meeting-header">
         <h2>Meeting: {meetingCode}</h2>
-        {/* ========== NEW: CLICKABLE PARTICIPANT BADGE (Phase 3) ========== */}
         <span
           className="participant-count clickable"
           onClick={() => setIsPanelOpen(!isPanelOpen)}
@@ -509,7 +481,6 @@ function VideoMeet() {
         </button>
       </div>
 
-      {/* ========== NEW: PARTICIPANT WINDOW PANEL (Phase 3) ========== */}
       <ParticipantWindow
         isOpen={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
