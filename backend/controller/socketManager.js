@@ -8,7 +8,6 @@ let participantInfo = {}; // Structure: { meetingCode: [{socketId, name, isHost,
 
 export const connectToSocket = (server) => {
   const io = new Server(server, {
-    transports: ["websocket", "polling"],
     cors: {
       origin: "*",
       methods: ["GET", "POST"],
