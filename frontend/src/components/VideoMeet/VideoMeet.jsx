@@ -154,9 +154,7 @@ function VideoMeet() {
       };
 
       peer.onconnectionstatechange = () => {
-        if (peer.connectionState === "connected") {
-          toast.success("✅ Connected");
-        } else if (peer.connectionState === "failed") {
+        if (peer.connectionState === "failed") {
           toast.error("❌ Connection failed");
         }
       };
