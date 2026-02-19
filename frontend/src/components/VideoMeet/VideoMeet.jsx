@@ -18,6 +18,8 @@ import {
   faVideo,
   faVideoSlash,
   faPhoneSlash,
+  faCopy,
+  faCheck,
 } from "@fortawesome/free-solid-svg-icons";
 
 const ICE_SERVERS = {
@@ -49,6 +51,7 @@ function VideoMeet() {
   const [participantsList, setParticipantsList] = useState([]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("connected"); // 'connected', 'reconnecting', 'disconnected'
+  const [copied, setCopied] = useState(false);
 
   /* ---------- BLACK VIDEO TRACK ---------- */
   const createBlackVideoTrack = () => {
@@ -599,23 +602,44 @@ function VideoMeet() {
     });
   };
 
+  const copyMeetingCode = () => {
+    navigator.clipboard.writeText(meetingCode);
+    setCopied(true);
+    toast.success("📋 Meeting code copied!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="video-page">
       <div className="meeting-header">
-        <h2>Meeting: {meetingCode}</h2>
+        <div className="header-left">
+          <h2>Meeting</h2>
+          <button
+            className="copy-code-btn"
+            onClick={copyMeetingCode}
+            title="Click to copy meeting code"
+          >
+            <span className="code-text">{meetingCode}</span>
+            <FontAwesomeIcon
+              icon={copied ? faCheck : faCopy}
+              className="copy-icon"
+            />
+          </button>
+        </div>
         <div className="header-right">
           {connectionStatus === "reconnecting" && (
             <span className="connection-status reconnecting">
               ⚠️ Reconnecting...
             </span>
           )}
-          <span
-            className="participant-count clickable"
+          <button
+            className="participant-btn"
             onClick={() => setIsPanelOpen(!isPanelOpen)}
-            title="Click to view participants"
+            title="View participants"
           >
-            👥 {participantsList.length}
-          </span>
+            <span className="participant-badge">{participantsList.length}</span>
+            👥
+          </button>
         </div>
       </div>
 
