@@ -39,6 +39,8 @@ function VideoMeet() {
   const pendingLocalIceRef = useRef(new Map()); // socketId -> candidates
   const initializeRef = useRef(false);
   const participantNamesRef = useRef(new Map()); // socketId -> name
+  const joinTimeoutRef = useRef(null);
+  const hasJoinedRef = useRef(false);
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
@@ -318,6 +320,11 @@ function VideoMeet() {
     const handleParticipantList = (list) => {
       // list = [{socketId, name, isHost, joinedAt}, ...]
       setParticipantsList(list);
+      hasJoinedRef.current = true;
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current);
+        joinTimeoutRef.current = null;
+      }
       // Store names in map for quick lookup
       participantNamesRef.current.clear();
       list.forEach((p) => {
@@ -480,6 +487,23 @@ function VideoMeet() {
 
       socket.emit("join-call", joinData);
       setParticipants([]);
+
+      hasJoinedRef.current = false;
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current);
+      }
+      joinTimeoutRef.current = setTimeout(() => {
+        if (hasJoinedRef.current) return;
+        toast.error("Failed to join within 30 seconds. Redirecting...");
+        localStreamRef.current?.getTracks().forEach((t) => t.stop());
+        peersRef.current.forEach((peer) => peer.close());
+        peersRef.current.clear();
+        clearMeetingCode();
+        if (socket.connected) {
+          socket.disconnect();
+        }
+        navigate("/meeting");
+      }, 30000);
     };
 
     // Initialize meeting when auth is ready
@@ -509,6 +533,10 @@ function VideoMeet() {
       }
       namesRefCurrent.clear();
       clearMeetingCode();
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current);
+        joinTimeoutRef.current = null;
+      }
       if (socket.connected) {
         socket.disconnect();
       }
@@ -557,6 +585,10 @@ function VideoMeet() {
     peersRef.current.forEach((peer) => peer.close());
     socket.emit("leave-call", meetingCode);
     clearMeetingCode();
+    if (joinTimeoutRef.current) {
+      clearTimeout(joinTimeoutRef.current);
+      joinTimeoutRef.current = null;
+    }
     socket.disconnect();
     navigate("/");
   };
