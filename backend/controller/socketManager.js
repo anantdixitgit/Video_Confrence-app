@@ -121,19 +121,30 @@ export const connectToSocket = (server) => {
           delete timeOnline[oldSocketId];
         }
 
-        // Notify user of successful reconnection
+        // Get list of other users for WebRTC re-negotiation
+        const otherUsers = connections[meetingCode]
+          ? connections[meetingCode].filter((id) => id !== socket.id)
+          : [];
+
+        // Get reconnected user's data
+        const userData = disconnectInfo.userData || {};
+
+        // Notify user of successful reconnection with list of users to reconnect to
         socket.emit("reconnection-successful", {
           newSocketId: socket.id,
           meetingCode: meetingCode,
+          otherUsers: otherUsers,
+          userData: userData,
         });
 
-        // Notify others that user reconnected
+        // Notify others that user reconnected - they need to re-establish peers
         if (connections[meetingCode]) {
           connections[meetingCode].forEach((peerId) => {
             if (peerId !== socket.id) {
               io.to(peerId).emit("user-reconnected", {
                 oldSocketId: oldSocketId,
                 newSocketId: socket.id,
+                userData: userData,
               });
             }
           });

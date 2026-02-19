@@ -341,43 +341,89 @@ function VideoMeet() {
       });
     };
 
-    const handleUserReconnected = (data) => {
-      const { oldSocketId, newSocketId } = data;
+    const handleUserReconnected = async (data) => {
+      const { oldSocketId, newSocketId, userData } = data;
 
-      // Update peer references
+      // Close old peer connection
       if (peersRef.current.has(oldSocketId)) {
-        const peer = peersRef.current.get(oldSocketId);
+        const oldPeer = peersRef.current.get(oldSocketId);
+        oldPeer.close();
         peersRef.current.delete(oldSocketId);
-        peersRef.current.set(newSocketId, peer);
       }
 
-      if (remoteStreamsRef.current.has(oldSocketId)) {
-        const stream = remoteStreamsRef.current.get(oldSocketId);
-        remoteStreamsRef.current.delete(oldSocketId);
-        remoteStreamsRef.current.set(newSocketId, stream);
-      }
+      // Clean up old references
+      remoteStreamsRef.current.delete(oldSocketId);
+      pendingIceRef.current.delete(oldSocketId);
+      pendingLocalIceRef.current.delete(oldSocketId);
 
-      // Update participants list
-      setParticipants((prev) =>
-        prev.map((id) => (id === oldSocketId ? newSocketId : id)),
-      );
-
-      const participantName =
-        participantNamesRef.current.get(oldSocketId) || "Participant";
-      toast.success(`✅ ${participantName} reconnected!`);
+      // Remove old participant from UI
+      setParticipants((prev) => prev.filter((id) => id !== oldSocketId));
 
       // Update name map
-      if (participantNamesRef.current.has(oldSocketId)) {
-        const name = participantNamesRef.current.get(oldSocketId);
-        participantNamesRef.current.delete(oldSocketId);
-        participantNamesRef.current.set(newSocketId, name);
+      const participantName =
+        participantNamesRef.current.get(oldSocketId) ||
+        userData?.userName ||
+        "Participant";
+      participantNamesRef.current.delete(oldSocketId);
+      participantNamesRef.current.set(
+        newSocketId,
+        userData?.userName || participantName,
+      );
+
+      toast.success(`✅ ${participantName} reconnected!`);
+
+      // Create NEW peer connection with reconnected user
+      const peer = createPeer(newSocketId);
+      const pendingLocal = pendingLocalIceRef.current.get(newSocketId) || [];
+
+      if (pendingLocal.length > 0) {
+        pendingLocal.forEach((cand) =>
+          socket.emit("signal", newSocketId, cand),
+        );
+        pendingLocalIceRef.current.set(newSocketId, []);
+      }
+
+      // Send offer to reconnected user to establish new WebRTC connection
+      try {
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        socket.emit("signal", newSocketId, offer);
+      } catch (err) {
+        console.error("Error creating offer for reconnected user:", err);
       }
     };
 
-    const handleReconnectionSuccessful = () => {
+    const handleReconnectionSuccessful = async (data) => {
       setConnectionStatus("connected");
       toast.dismiss("reconnecting");
       toast.success("✅ Session restored!");
+
+      const { otherUsers } = data;
+
+      // Re-establish WebRTC connections with all other users
+      if (otherUsers && otherUsers.length > 0) {
+        for (const userId of otherUsers) {
+          if (userId === socket.id) continue;
+
+          // Create new peer connection
+          const peer = createPeer(userId);
+          const pendingLocal = pendingLocalIceRef.current.get(userId) || [];
+
+          if (pendingLocal.length > 0) {
+            pendingLocal.forEach((cand) => socket.emit("signal", userId, cand));
+            pendingLocalIceRef.current.set(userId, []);
+          }
+
+          // Send offer to re-establish connection
+          try {
+            const offer = await peer.createOffer();
+            await peer.setLocalDescription(offer);
+            socket.emit("signal", userId, offer);
+          } catch (err) {
+            console.error("Error creating offer during reconnection:", err);
+          }
+        }
+      }
     };
 
     socket.on("user-joined", handleUserJoined);
