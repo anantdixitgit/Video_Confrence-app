@@ -41,6 +41,7 @@ function VideoMeet() {
   const participantNamesRef = useRef(new Map()); // socketId -> name
   const joinTimeoutRef = useRef(null);
   const hasJoinedRef = useRef(false);
+  const isLeavingRef = useRef(false);
 
   const [micOn, setMicOn] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
@@ -333,6 +334,9 @@ function VideoMeet() {
     };
 
     const handleDisconnect = () => {
+      if (isLeavingRef.current) {
+        return;
+      }
       setConnectionStatus("reconnecting");
       toast.warning("⚠️ Connection lost. Attempting to reconnect...", {
         autoClose: false,
@@ -581,16 +585,20 @@ function VideoMeet() {
   };
 
   const leaveMeeting = () => {
+    isLeavingRef.current = true;
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     peersRef.current.forEach((peer) => peer.close());
-    socket.emit("leave-call", meetingCode);
     clearMeetingCode();
     if (joinTimeoutRef.current) {
       clearTimeout(joinTimeoutRef.current);
       joinTimeoutRef.current = null;
     }
-    socket.disconnect();
-    navigate("/");
+    socket.emit("leave-call", meetingCode, () => {
+      if (socket.connected) {
+        socket.disconnect();
+      }
+      navigate("/");
+    });
   };
 
   return (

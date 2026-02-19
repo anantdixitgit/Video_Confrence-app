@@ -176,7 +176,15 @@ export const connectToSocket = (server) => {
       }
     });
 
-    socket.on("leave-call", (path) => {
+    socket.on("leave-call", (path, ack) => {
+      socket.data.leftMeeting = true;
+
+      if (disconnectedUsers.has(socket.id)) {
+        const info = disconnectedUsers.get(socket.id);
+        clearTimeout(info.timeoutId);
+        disconnectedUsers.delete(socket.id);
+      }
+
       if (connections[path]) {
         const index = connections[path].indexOf(socket.id);
         if (index > -1) {
@@ -204,6 +212,10 @@ export const connectToSocket = (server) => {
           delete connections[path];
           delete participantInfo[path]; // Clean up participant info when room is empty
         }
+      }
+
+      if (typeof ack === "function") {
+        ack();
       }
     });
 
@@ -235,6 +247,10 @@ export const connectToSocket = (server) => {
     });
 
     socket.on("disconnect", () => {
+      if (socket.data.leftMeeting) {
+        return;
+      }
+
       const socketId = socket.id;
 
       // Find the room the user was in
