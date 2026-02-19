@@ -16,10 +16,11 @@ export const socket = io(SERVER_URL, {
 // Store old socket ID for reconnection
 let oldSocketId = null;
 let currentMeetingCode = null;
+let hasEstablishedSession = false; // Track if first connect or reconnect
 
 socket.on("connect", () => {
-  // If we have an old socket ID, attempt to restore session
-  if (oldSocketId && currentMeetingCode) {
+  // Only attempt reconnection if we previously had an established session
+  if (oldSocketId && currentMeetingCode && hasEstablishedSession) {
     socket.emit("reconnection-attempt", {
       oldSocketId: oldSocketId,
       meetingCode: currentMeetingCode,
@@ -27,6 +28,11 @@ socket.on("connect", () => {
   }
   oldSocketId = null; // Clear after use
 });
+
+// Mark session established after first join
+export const markSessionEstablished = () => {
+  hasEstablishedSession = true;
+};
 
 socket.on("disconnect", () => {
   // Store old socket ID before disconnection

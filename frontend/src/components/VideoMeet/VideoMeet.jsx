@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { socket, setMeetingCode, clearMeetingCode } from "../../utils/socket";
+import {
+  socket,
+  setMeetingCode,
+  clearMeetingCode,
+  markSessionEstablished,
+} from "../../utils/socket";
 import "./VideoMeet.css";
 import { toast } from "react-toastify";
 import { useAuth } from "../../context/AuthContext";
@@ -471,6 +476,7 @@ function VideoMeet() {
 
       // Set meeting code for reconnection tracking
       setMeetingCode(meetingCode);
+      markSessionEstablished();
 
       socket.emit("join-call", joinData);
       setParticipants([]);
