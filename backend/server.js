@@ -35,7 +35,6 @@ app.use(
 app.use(compression({ level: 6, threshold: 1024 }));
 
 app.use(express.json({ limit: "50kb" }));
-app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
