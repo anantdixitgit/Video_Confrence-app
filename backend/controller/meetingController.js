@@ -1,39 +1,42 @@
 import Meeting from "../Models/meetingSchema.js";
+import { randomBytes } from "node:crypto";
 import { getActiveMeetings } from "./socketManager.js";
 
 export const createMeeting = async (req, res) => {
   try {
-    let meetingCode;
-    let meeting;
-    let attempts = 0;
     const maxAttempts = 5;
 
-    // Generate unique meeting code (with retry logic)
-    while (attempts < maxAttempts) {
-      meetingCode = Math.random().toString(36).substring(2, 10);
-      meeting = await Meeting.findOne({ meetingCode }).lean();
-      if (!meeting) break;
-      attempts++;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const meetingCode = randomBytes(4).toString("hex");
+
+      try {
+        const newMeeting = await Meeting.create({
+          user_id: req._id || req.user?._id,
+          meetingCode,
+        });
+
+        return res.status(201).json({
+          success: true,
+          meetingCode: newMeeting.meetingCode,
+        });
+      } catch (error) {
+        const isDuplicateMeetingCode =
+          error?.code === 11000 &&
+          (error?.keyPattern?.meetingCode ||
+            String(error?.message || "").includes("meetingCode"));
+
+        if (!isDuplicateMeetingCode) {
+          throw error;
+        }
+      }
     }
 
-    if (meeting) {
-      return res.status(500).json({
-        success: false,
-        message: "Failed to generate unique meeting code",
-      });
-    }
-
-    const newMeeting = await Meeting.create({
-      user_id: req.user._id,
-      meetingCode,
-    });
-
-    res.status(201).json({
-      success: true,
-      meetingCode: newMeeting.meetingCode,
+    return res.status(500).json({
+      success: false,
+      message: "Failed to generate unique meeting code",
     });
   } catch (err) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Meeting creation failed",
     });
@@ -75,20 +78,18 @@ export const joinMeeting = async (req, res) => {
 
 export const getallMeetings = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    const userId = req._id || req.user?._id;
 
-    // Use lean() for read-only queries and pagination
-    const meetings = await Meeting.find({ user_id: userId })
+    // Fetch 31 to check if there are more meetings beyond 30
+    const allMeetings = await Meeting.find({ user_id: userId })
+      .select("meetingCode date")
       .sort({ date: -1 })
-      .skip(skip)
-      .limit(limit)
+      .limit(31)
       .lean();
 
-    // Get total count separately
-    const total = await Meeting.countDocuments({ user_id: userId });
+    // Only return 30, but let frontend know if there are more
+    const meetings = allMeetings.slice(0, 30);
+    const hasMore = allMeetings.length > 30;
 
     // Get active meetings from socket connections
     const activeMeetings = getActiveMeetings();
@@ -110,12 +111,7 @@ export const getallMeetings = async (req, res) => {
       success: true,
       message: "Meetings fetched successfully",
       meetings: meetingsWithStatus,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
-      },
+      hasMore,
     });
   } catch (err) {
     res.status(500).json({

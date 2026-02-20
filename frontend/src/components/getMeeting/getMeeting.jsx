@@ -10,7 +10,9 @@ function GetMeeting() {
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     fetchMeetings();
@@ -26,6 +28,7 @@ function GetMeeting() {
 
       if (res.data.success) {
         setMeetings(res.data.meetings || []);
+        setHasMore(res.data.hasMore || false);
         setError("");
       }
     } catch (err) {
@@ -34,6 +37,26 @@ function GetMeeting() {
       toast.error("Failed to load meetings");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    try {
+      setLoadingMore(true);
+      const res = await axios.get(
+        "https://video-confrence-app.onrender.com/api/v1/meeting/allmeetings?page=2",
+        { withCredentials: true },
+      );
+
+      if (res.data.success) {
+        setMeetings((prev) => [...prev, ...(res.data.meetings || [])]);
+        setHasMore(res.data.hasMore || false);
+      }
+    } catch (err) {
+      console.error("Error loading more meetings:", err);
+      toast.error("Failed to load more meetings");
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -145,6 +168,18 @@ function GetMeeting() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {!loading && meetings.length > 0 && hasMore && (
+        <div className="load-more-container">
+          <button
+            className="load-more-btn"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "Loading..." : "Load More Meetings"}
+          </button>
         </div>
       )}
     </div>

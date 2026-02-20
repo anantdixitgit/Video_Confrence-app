@@ -1,5 +1,7 @@
 import express from "express";
-import verifyJWT from "../Middleware/Auth.middleware.js";
+import verifyJWT, {
+  verifyJWTAndLoadUser,
+} from "../Middleware/Auth.middleware.js";
 import { cacheMiddleware } from "../Middleware/cacheMiddleware.js";
 import {
   register,
@@ -13,7 +15,7 @@ Router.route("/register").post(register);
 Router.route("/login").post(login);
 Router.route("/logout").post(logout);
 Router.route("/authenticate").get(
-  verifyJWT,
+  verifyJWTAndLoadUser,
   cacheMiddleware(10),
   isAuthenticated,
 );
